@@ -1,0 +1,160 @@
+# Local-only demonstration stack. It intentionally loads sample accounts and demo records;
+# never use this file for a production deployment.
+name: winpress-commercial-v42
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: winpress-commercial-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-winpress_commercial}
+      POSTGRES_USER: ${POSTGRES_USER:-winpress}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-winpress_local_db_2026}
+      TZ: Asia/Shanghai
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-55434}:5432"
+    volumes:
+      - winpress_commercial_postgres_data:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./database/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+      - ./database/10-brand-case-demo-data.sql:/docker-entrypoint-initdb.d/02z-brand-case-demo-data.sql:ro
+      - ./database/03-media-import.sql:/docker-entrypoint-initdb.d/03-media-import.sql:ro
+      - ./database/04-normalize-public-channel-data.sql:/docker-entrypoint-initdb.d/04-normalize-public-channel-data.sql:ro
+      - ./database/13-conference-progressive-intake.sql:/docker-entrypoint-initdb.d/13-conference-progressive-intake.sql:ro
+      - ./database/14-supplier-orders-and-conference-workbench.sql:/docker-entrypoint-initdb.d/14-supplier-orders-and-conference-workbench.sql:ro
+      - ./database/15-niumedia-reporter-and-multi-invitation.sql:/docker-entrypoint-initdb.d/15-niumedia-reporter-and-multi-invitation.sql:ro
+      - ./database/16-media-partnership-inquiry.sql:/docker-entrypoint-initdb.d/16-media-partnership-inquiry.sql:ro
+      - ./database/17-local-demo-writing-assignment.sql:/docker-entrypoint-initdb.d/17-local-demo-writing-assignment.sql:ro
+      - ./database/18-service-intake-tasks.sql:/docker-entrypoint-initdb.d/18-service-intake-tasks.sql:ro
+      - ./database/19-activity-project-linkage.sql:/docker-entrypoint-initdb.d/19-activity-project-linkage.sql:ro
+      - ./database/20-direct-manuscript-source.sql:/docker-entrypoint-initdb.d/20-direct-manuscript-source.sql:ro
+      - ./database/21-manual-media-invitation-pending-verification.sql:/docker-entrypoint-initdb.d/21-manual-media-invitation-pending-verification.sql:ro
+      - ./database/22-service-intake-title-integrity.sql:/docker-entrypoint-initdb.d/22-service-intake-title-integrity.sql:ro
+      - ./database/23-settlement-transaction-ledger.sql:/docker-entrypoint-initdb.d/23-settlement-transaction-ledger.sql:ro
+      - ./database/24-requirement-idempotency.sql:/docker-entrypoint-initdb.d/24-requirement-idempotency.sql:ro
+      - ./database/25-task-acceptance-integrity.sql:/docker-entrypoint-initdb.d/25-task-acceptance-integrity.sql:ro
+      - ./database/26-channel-quote-integrity.sql:/docker-entrypoint-initdb.d/26-channel-quote-integrity.sql:ro
+      - ./database/27-media-invitation-progress-integrity.sql:/docker-entrypoint-initdb.d/27-media-invitation-progress-integrity.sql:ro
+      - ./database/28-publish-task-terminal-integrity.sql:/docker-entrypoint-initdb.d/28-publish-task-terminal-integrity.sql:ro
+      - ./database/29-publish-plan-idempotency.sql:/docker-entrypoint-initdb.d/29-publish-plan-idempotency.sql:ro
+      - ./database/30-settlement-transaction-idempotency.sql:/docker-entrypoint-initdb.d/30-settlement-transaction-idempotency.sql:ro
+      - ./database/31-batch-quote-adjustment-idempotency.sql:/docker-entrypoint-initdb.d/31-batch-quote-adjustment-idempotency.sql:ro
+      - ./database/32-publish-plan-service-integrity.sql:/docker-entrypoint-initdb.d/32-publish-plan-service-integrity.sql:ro
+      - ./database/33-supplier-api-connections.sql:/docker-entrypoint-initdb.d/33-supplier-api-connections.sql:ro
+      - ./database/34-open-api-management.sql:/docker-entrypoint-initdb.d/34-open-api-management.sql:ro
+      - ./database/35-release-governance-and-evidence.sql:/docker-entrypoint-initdb.d/35-release-governance-and-evidence.sql:ro
+      - ./database/36-schema-migration-ledger.sql:/docker-entrypoint-initdb.d/36-schema-migration-ledger.sql:ro
+      - ./database/37-media-pr-result-integrity.sql:/docker-entrypoint-initdb.d/37-media-pr-result-integrity.sql:ro
+      - ./database/38-writing-assignment-slot-schedule-integrity.sql:/docker-entrypoint-initdb.d/38-writing-assignment-slot-schedule-integrity.sql:ro
+      - ./database/39-writing-assignment-radius-integrity.sql:/docker-entrypoint-initdb.d/39-writing-assignment-radius-integrity.sql:ro
+      - ./database/40-conference-work-item-state-integrity.sql:/docker-entrypoint-initdb.d/40-conference-work-item-state-integrity.sql:ro
+      - ./database/41-conference-media-candidate-state-integrity.sql:/docker-entrypoint-initdb.d/41-conference-media-candidate-state-integrity.sql:ro
+      # A public source checkout starts with headers-only samples. Approved local
+      # media data may be injected through ignored WINPRESS_MEDIA_*_CSV settings.
+      - ${WINPRESS_MEDIA_CHANNELS_CSV:-./database/media_channels.example.csv}:/docker-entrypoint-initdb.d/media_channels.csv:ro
+      - ${WINPRESS_MEDIA_QUOTES_CSV:-./database/media_quotes.example.csv}:/docker-entrypoint-initdb.d/media_quotes.csv:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-winpress} -d ${POSTGRES_DB:-winpress_commercial}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: winpress-commercial-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-winpress_local_redis_2026}
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6382}:6379"
+    volumes:
+      - winpress_commercial_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-winpress_local_redis_2026}", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.local
+    image: winpress-commercial-backend:local
+    container_name: winpress-commercial-backend
+    restart: unless-stopped
+    environment:
+      BACKEND_PORT: 8092
+      WINPRESS_DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-winpress_commercial}
+      WINPRESS_DB_USERNAME: ${POSTGRES_USER:-winpress}
+      WINPRESS_DB_PASSWORD: ${POSTGRES_PASSWORD:-winpress_local_db_2026}
+      WINPRESS_REDIS_HOST: redis
+      WINPRESS_REDIS_PORT: 6379
+      WINPRESS_REDIS_PASSWORD: ${REDIS_PASSWORD:-winpress_local_redis_2026}
+      WINPRESS_STORAGE_PATH: /app/storage/uploads
+      WINPRESS_STORAGE_MAX_FILE_BYTES: ${WINPRESS_STORAGE_MAX_FILE_BYTES:-20971520}
+      WINPRESS_CORS_ORIGINS: http://127.0.0.1:${FRONTEND_PORT:-5217},http://localhost:${FRONTEND_PORT:-5217}
+      # Local demonstration only: retain the API explorer for integration testing.
+      WINPRESS_API_DOCS_ENABLED: 'true'
+      WINPRESS_NIUMEDIA_BASE_URL: ${WINPRESS_NIUMEDIA_BASE_URL:-https://api.media.beer/v1}
+      WINPRESS_NIUMEDIA_TOKEN: ${WINPRESS_NIUMEDIA_TOKEN:-}
+      WINPRESS_NIUMEDIA_MEDIA_SEARCH_PATH: ${WINPRESS_NIUMEDIA_MEDIA_SEARCH_PATH:-/media/search}
+      WINPRESS_NIUMEDIA_REPORTER_SEARCH_PATH: ${WINPRESS_NIUMEDIA_REPORTER_SEARCH_PATH:-/reporter/search}
+      WINPRESS_NIUMEDIA_REGION_PATH: ${WINPRESS_NIUMEDIA_REGION_PATH:-/region}
+      WINPRESS_NIUMEDIA_MEDIA_TYPES_PATH: ${WINPRESS_NIUMEDIA_MEDIA_TYPES_PATH:-/media/types}
+      WINPRESS_NIUMEDIA_MEDIA_FORMS_PATH: ${WINPRESS_NIUMEDIA_MEDIA_FORMS_PATH:-/media/mp_types}
+      WINPRESS_NIUMEDIA_REQUEST_TIMEOUT_SECONDS: ${WINPRESS_NIUMEDIA_REQUEST_TIMEOUT_SECONDS:-15}
+      WINPRESS_NIUMEDIA_SEARCH_CACHE_SECONDS: ${WINPRESS_NIUMEDIA_SEARCH_CACHE_SECONDS:-300}
+      WINPRESS_NIUMEDIA_TAXONOMY_CACHE_SECONDS: ${WINPRESS_NIUMEDIA_TAXONOMY_CACHE_SECONDS:-86400}
+      WINPRESS_NIUMEDIA_MIN_REQUEST_INTERVAL_MILLIS: ${WINPRESS_NIUMEDIA_MIN_REQUEST_INTERVAL_MILLIS:-500}
+      WINPRESS_NIUMEDIA_RATE_LIMIT_COOLDOWN_SECONDS: ${WINPRESS_NIUMEDIA_RATE_LIMIT_COOLDOWN_SECONDS:-60}
+      WINPRESS_LOGIN_MAX_FAILURES: ${WINPRESS_LOGIN_MAX_FAILURES:-8}
+      WINPRESS_LOGIN_FAILURE_WINDOW_SECONDS: ${WINPRESS_LOGIN_FAILURE_WINDOW_SECONDS:-900}
+      WINPRESS_LOGIN_COOLDOWN_SECONDS: ${WINPRESS_LOGIN_COOLDOWN_SECONDS:-300}
+      WINPRESS_FEDERATION_ENABLED: ${WINPRESS_FEDERATION_ENABLED:-false}
+      WINPRESS_FEDERATION_MIGRATE_ON_START: ${WINPRESS_FEDERATION_MIGRATE_ON_START:-false}
+      WINPRESS_FEDERATION_SHARED_SECRET: ${WINPRESS_FEDERATION_SHARED_SECRET:-}
+      WINPRESS_FEDERATION_PLATFORM_ISSUER: ${WINPRESS_FEDERATION_PLATFORM_ISSUER:-niumedia-platform}
+      WINPRESS_FEDERATION_WINPRESS_ISSUER: ${WINPRESS_FEDERATION_WINPRESS_ISSUER:-winpress-commercial}
+      WINPRESS_FEDERATION_SOURCE_INSTANCE_ID: ${WINPRESS_FEDERATION_SOURCE_INSTANCE_ID:-default}
+      WINPRESS_FEDERATION_GEO_CALLBACK_URL: ${WINPRESS_FEDERATION_GEO_CALLBACK_URL:-}
+      WINPRESS_FEDERATION_CALLBACK_TIMEOUT_SECONDS: ${WINPRESS_FEDERATION_CALLBACK_TIMEOUT_SECONDS:-15}
+      WINPRESS_FEDERATION_MAX_REQUESTS_PER_MINUTE: ${WINPRESS_FEDERATION_MAX_REQUESTS_PER_MINUTE:-120}
+    ports:
+      - "127.0.0.1:${BACKEND_PORT:-8192}:8092"
+    volumes:
+      - winpress_commercial_uploads:/app/storage/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8092/api/v1/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_LOCAL_DEMO: 'true'
+    image: winpress-commercial-frontend:local
+    container_name: winpress-commercial-frontend
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-5217}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  winpress_commercial_postgres_data:
+  winpress_commercial_redis_data:
+  winpress_commercial_uploads:

@@ -1,0 +1,353 @@
+openapi: 3.0.3
+info:
+  title: WinPress GEO Server Federation API
+  version: "1.1"
+  description: |
+    云发布与牛媒信源 GEO 平台之间的服务端联动契约。
+    三项接口已在当前源码实现；生产域名、凭据、回调和调用额度仍待联合验收。
+    本契约不包含 X-API-Key 客户开放平台，也不包含未实现的公开媒体、文件或订单查询接口。
+servers:
+  - url: http://127.0.0.1:8192/api/v1
+    description: 本机联调
+  - url: https://winpress.cn/api/v1
+    description: 生产规划地址，待部署与联合验收
+tags:
+  - name: GEO Federation
+    description: 仅限受信任后端服务调用
+paths:
+  /integrations/geo/quotes:
+    post:
+      tags: [GEO Federation]
+      summary: 查询四项服务的客户报价
+      operationId: quoteFederatedService
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/QuoteEnvelope"
+      responses:
+        "200":
+          description: 报价或人工报价状态
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+  /integrations/geo/catalog/direct-publishing-offers:
+    post:
+      tags: [GEO Federation]
+      summary: 获取当前可选的直编发稿渠道及客户价
+      operationId: listDirectPublishingOffers
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CatalogEnvelope"
+      responses:
+        "200":
+          description: 客户可见渠道目录
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+  /integrations/geo/orders:
+    post:
+      tags: [GEO Federation]
+      summary: 提交一项独立的云发布履约订单
+      description: |
+        service_type 只接受 ONSITE_WRITING、MEDIA_PR、DIRECT_PUBLISHING、NEWS_CONFERENCE。
+        相同 order_id 与相同快照幂等返回；相同 order_id 与不同快照返回 409。
+      operationId: acceptFederatedOrder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrderEnvelope"
+      responses:
+        "200":
+          description: 订单受理回执
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "429":
+          $ref: "#/components/responses/RateLimited"
+        "503":
+          $ref: "#/components/responses/Unavailable"
+components:
+  responses:
+    BadRequest:
+      description: 参数无效或包含内部字段
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiResponse"
+    Unauthorized:
+      description: 签名、身份、方向或快照哈希无效
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiResponse"
+    Conflict:
+      description: 幂等冲突、报价失效或履约对象无法创建
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiResponse"
+    RateLimited:
+      description: 同一服务来源超过每分钟调用上限
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiResponse"
+    Unavailable:
+      description: 联动未启用或生产配置未完成
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ApiResponse"
+  schemas:
+    ApiResponse:
+      type: object
+      required: [success, code, message, timestamp]
+      properties:
+        success:
+          type: boolean
+        code:
+          type: string
+        message:
+          type: string
+        data:
+          type: object
+          nullable: true
+          additionalProperties: true
+        timestamp:
+          type: string
+          format: date-time
+    QuoteEnvelope:
+      type: object
+      required: [assertion, request]
+      properties:
+        assertion:
+          type: string
+          description: GEO 后端签发的短期 HS256 JWT
+        request:
+          $ref: "#/components/schemas/QuoteRequest"
+    CatalogEnvelope:
+      type: object
+      required: [assertion, request]
+      properties:
+        assertion:
+          type: string
+          description: GEO 后端签发的短期 HS256 JWT
+        request:
+          allOf:
+            - $ref: "#/components/schemas/QuoteIdentity"
+            - type: object
+              required: [limit]
+              properties:
+                limit:
+                  type: integer
+                  minimum: 1
+                  maximum: 100
+                  default: 40
+    OrderEnvelope:
+      type: object
+      required: [assertion, snapshot]
+      properties:
+        assertion:
+          type: string
+          description: GEO 后端签发且含 snapshot_hash 的短期 HS256 JWT
+        snapshot:
+          $ref: "#/components/schemas/OrderSnapshot"
+    QuoteIdentity:
+      type: object
+      required:
+        - quote_request_id
+        - tenant_id
+        - organization_id
+        - brand_id
+        - project_id
+        - service_type
+      properties:
+        quote_request_id:
+          type: string
+          maxLength: 128
+        tenant_id:
+          type: string
+          maxLength: 128
+        organization_id:
+          type: string
+          maxLength: 128
+        brand_id:
+          type: string
+          maxLength: 128
+        project_id:
+          type: string
+          maxLength: 128
+        service_type:
+          $ref: "#/components/schemas/ServiceType"
+    QuoteRequest:
+      allOf:
+        - $ref: "#/components/schemas/QuoteIdentity"
+        - type: object
+          required: [service_details]
+          properties:
+            service_details:
+              $ref: "#/components/schemas/ServiceDetails"
+    OrderSnapshot:
+      type: object
+      required:
+        - contract_version
+        - event_type
+        - event_id
+        - tenant_id
+        - organization_id
+        - brand_id
+        - project_id
+        - order_id
+        - confirmed_by
+        - service_type
+        - title
+        - service_details
+      properties:
+        contract_version:
+          type: string
+          enum: ["1.0"]
+        event_type:
+          type: string
+          enum: [WinpressFederatedOrderRequested]
+        event_id:
+          type: string
+          maxLength: 128
+        tenant_id:
+          type: string
+          maxLength: 128
+        organization_id:
+          type: string
+          maxLength: 128
+        organization_name:
+          type: string
+        brand_id:
+          type: string
+          maxLength: 128
+        project_id:
+          type: string
+          maxLength: 128
+        order_id:
+          type: string
+          maxLength: 128
+        confirmed_by:
+          type: string
+          maxLength: 128
+        service_type:
+          $ref: "#/components/schemas/ServiceType"
+        title:
+          type: string
+        facts:
+          type: string
+        objective:
+          type: string
+        target_audience:
+          type: string
+        due_at:
+          type: string
+          format: date-time
+        currency:
+          type: string
+          default: CNY
+        authorization_reference:
+          type: string
+          description: 直编发稿必填的费用授权编号
+        service_details:
+          $ref: "#/components/schemas/ServiceDetails"
+    ServiceType:
+      type: string
+      enum: [ONSITE_WRITING, MEDIA_PR, DIRECT_PUBLISHING, NEWS_CONFERENCE]
+    ServiceDetails:
+      type: object
+      description: |
+        按 service_type 使用相应字段。新闻发布会至少需要 contact_name 与 contact_mobile。
+        直编发稿需要 channel_selections 和 delivery_package.immutable_snapshot.approved_content.content。
+      properties:
+        service_days:
+          type: integer
+          minimum: 1
+          maximum: 30
+        writer_count:
+          type: integer
+          minimum: 1
+          maximum: 10
+        event_time:
+          type: string
+          format: date-time
+        event_location:
+          type: string
+        contact_name:
+          type: string
+        contact_mobile:
+          type: string
+        conference_type:
+          type: string
+        conference_format:
+          type: string
+        deliverable_requirement:
+          type: string
+        channel_selections:
+          type: array
+          minItems: 1
+          maxItems: 30
+          items:
+            type: object
+            required: [channel_id]
+            properties:
+              channel_id:
+                type: string
+                pattern: "^[1-9][0-9]*$"
+              planned_publish_at:
+                type: string
+                format: date-time
+              note:
+                type: string
+        delivery_package:
+          type: object
+          properties:
+            immutable_snapshot:
+              type: object
+              properties:
+                approved_content:
+                  type: object
+                  required: [content]
+                  properties:
+                    title:
+                      type: string
+                    summary:
+                      type: string
+                    content:
+                      type: string

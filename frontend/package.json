@@ -1,0 +1,37 @@
+{
+  "name": "winpress-commercial-frontend",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "predev": "powershell -NoProfile -ExecutionPolicy Bypass -File ../scripts/check-ports.ps1 -Scope frontend",
+    "dev": "vite --host 127.0.0.1",
+    "build": "vue-tsc -b && vite build",
+    "prepreview": "powershell -NoProfile -ExecutionPolicy Bypass -File ../scripts/check-ports.ps1 -Scope frontend",
+    "preview": "vite preview",
+    "typecheck": "vue-tsc -b",
+    "format": "prettier --write \"src/**/*.{ts,vue,css}\" \"*.{ts,json,html}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,vue,css}\" \"*.{ts,json,html}\"",
+    "check": "npm run typecheck && npm run format:check",
+    "test:e2e": "playwright test",
+    "test:a11y": "playwright test --grep \"公开营销页面\""
+  },
+  "dependencies": {
+    "axios": "^1.7.7",
+    "lucide-vue-next": "^0.468.0",
+    "pinia": "^2.2.6",
+    "vue": "^3.5.13",
+    "vue-router": "^4.5.0"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.12.1",
+    "@playwright/test": "^1.62.0",
+    "@types/node": "^22.10.2",
+    "@vitejs/plugin-vue": "^5.2.1",
+    "@vue/tsconfig": "^0.7.0",
+    "prettier": "3.9.0",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.1",
+    "vue-tsc": "^3.3.8"
+  }
+}

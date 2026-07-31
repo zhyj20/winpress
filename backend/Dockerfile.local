@@ -1,0 +1,12 @@
+# Local-demo runtime image. The artifact is assembled and tested on the host first so local
+# acceptance does not depend on a transient Maven Central connection inside Docker.
+FROM eclipse-temurin:17-jre-alpine
+
+RUN addgroup -S winpress && adduser -S winpress -G winpress
+WORKDIR /app
+COPY target-local/winpress-commercial-1.0.0.jar /app/app.jar
+RUN mkdir -p /app/storage/uploads && chown -R winpress:winpress /app
+
+USER winpress
+EXPOSE 8092
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]

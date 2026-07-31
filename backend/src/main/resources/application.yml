@@ -1,0 +1,80 @@
+server:
+  port: ${BACKEND_PORT:8192}
+  forward-headers-strategy: framework
+
+spring:
+  application:
+    name: winpress-commercial
+  # WinPress keeps its mature commercial schema outside Spring Boot's default
+  # Flyway lifecycle. GEO federation owns an opt-in, separately versioned
+  # `winpress_federation` schema via FederationFlywayConfiguration.
+  flyway:
+    enabled: false
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    url: ${WINPRESS_DB_URL:jdbc:postgresql://127.0.0.1:55434/winpress_commercial}
+    username: ${WINPRESS_DB_USERNAME:winpress}
+    password: ${WINPRESS_DB_PASSWORD:winpress_dev_password}
+    hikari:
+      maximum-pool-size: 12
+      minimum-idle: 2
+  data:
+    redis:
+      host: ${WINPRESS_REDIS_HOST:127.0.0.1}
+      port: ${WINPRESS_REDIS_PORT:6382}
+      password: ${WINPRESS_REDIS_PASSWORD:winpress_redis_dev_password}
+      timeout: 2s
+  jackson:
+    time-zone: Asia/Shanghai
+    default-property-inclusion: non_null
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 25MB
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    banner: false
+
+springdoc:
+  api-docs:
+    enabled: ${WINPRESS_API_DOCS_ENABLED:false}
+  swagger-ui:
+    enabled: ${WINPRESS_API_DOCS_ENABLED:false}
+    path: /swagger-ui.html
+    operations-sorter: method
+
+winpress:
+  session-ttl-hours: ${WINPRESS_SESSION_TTL_HOURS:12}
+  storage-path: ${WINPRESS_STORAGE_PATH:storage/uploads}
+  storage-max-file-bytes: ${WINPRESS_STORAGE_MAX_FILE_BYTES:20971520}
+  cors-origins: ${WINPRESS_CORS_ORIGINS:http://localhost:${FRONTEND_PORT:5217},http://127.0.0.1:${FRONTEND_PORT:5217},https://winpress.cn,https://winpress.waykey.net}
+  login:
+    max-failures: ${WINPRESS_LOGIN_MAX_FAILURES:8}
+    failure-window-seconds: ${WINPRESS_LOGIN_FAILURE_WINDOW_SECONDS:900}
+    cooldown-seconds: ${WINPRESS_LOGIN_COOLDOWN_SECONDS:300}
+  federation:
+    enabled: ${WINPRESS_FEDERATION_ENABLED:false}
+    migrate-on-start: ${WINPRESS_FEDERATION_MIGRATE_ON_START:false}
+    shared-secret: ${WINPRESS_FEDERATION_SHARED_SECRET:}
+    platform-issuer: ${WINPRESS_FEDERATION_PLATFORM_ISSUER:niumedia-platform}
+    winpress-issuer: ${WINPRESS_FEDERATION_WINPRESS_ISSUER:winpress-commercial}
+    source-instance-id: ${WINPRESS_FEDERATION_SOURCE_INSTANCE_ID:default}
+    geo-callback-url: ${WINPRESS_FEDERATION_GEO_CALLBACK_URL:}
+    callback-timeout-seconds: ${WINPRESS_FEDERATION_CALLBACK_TIMEOUT_SECONDS:15}
+    max-requests-per-minute: ${WINPRESS_FEDERATION_MAX_REQUESTS_PER_MINUTE:120}
+  niumedia:
+    base-url: ${WINPRESS_NIUMEDIA_BASE_URL:https://api.media.beer/v1}
+    token: ${WINPRESS_NIUMEDIA_TOKEN:}
+    media-search-path: ${WINPRESS_NIUMEDIA_MEDIA_SEARCH_PATH:/media/search}
+    reporter-search-path: ${WINPRESS_NIUMEDIA_REPORTER_SEARCH_PATH:/reporter/search}
+    region-path: ${WINPRESS_NIUMEDIA_REGION_PATH:/region}
+    media-types-path: ${WINPRESS_NIUMEDIA_MEDIA_TYPES_PATH:/media/types}
+    media-forms-path: ${WINPRESS_NIUMEDIA_MEDIA_FORMS_PATH:/media/mp_types}
+    request-timeout-seconds: ${WINPRESS_NIUMEDIA_REQUEST_TIMEOUT_SECONDS:15}
+    search-cache-seconds: ${WINPRESS_NIUMEDIA_SEARCH_CACHE_SECONDS:300}
+    taxonomy-cache-seconds: ${WINPRESS_NIUMEDIA_TAXONOMY_CACHE_SECONDS:86400}
+    min-request-interval-millis: ${WINPRESS_NIUMEDIA_MIN_REQUEST_INTERVAL_MILLIS:500}
+    rate-limit-cooldown-seconds: ${WINPRESS_NIUMEDIA_RATE_LIMIT_COOLDOWN_SECONDS:60}

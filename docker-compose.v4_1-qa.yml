@@ -1,0 +1,46 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: winpress-v41-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: winpress_commercial
+      POSTGRES_USER: winpress_v41
+      POSTGRES_PASSWORD: winpress_v41_local_db_2026
+      TZ: Asia/Shanghai
+    ports:
+      - "55433:5432"
+    volumes:
+      - winpress_v41_postgres_data:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./database/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+      - ./database/10-brand-case-demo-data.sql:/docker-entrypoint-initdb.d/02z-brand-case-demo-data.sql:ro
+      - ./database/03-media-import.sql:/docker-entrypoint-initdb.d/03-media-import.sql:ro
+      - ./database/04-normalize-public-channel-data.sql:/docker-entrypoint-initdb.d/04-normalize-public-channel-data.sql:ro
+      - ./database/15-niumedia-reporter-and-multi-invitation.sql:/docker-entrypoint-initdb.d/15-niumedia-reporter-and-multi-invitation.sql:ro
+      - ./database/media_channels.csv:/docker-entrypoint-initdb.d/media_channels.csv:ro
+      - ./database/media_quotes.csv:/docker-entrypoint-initdb.d/media_quotes.csv:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U winpress_v41 -d winpress_commercial"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: winpress-v41-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass winpress_v41_local_redis_2026
+    ports:
+      - "6381:6379"
+    volumes:
+      - winpress_v41_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "winpress_v41_local_redis_2026", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  winpress_v41_postgres_data:
+  winpress_v41_redis_data:

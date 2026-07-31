@@ -1,0 +1,67 @@
+# Dependencies and build output
+frontend/node_modules/
+frontend/dist/
+backend/target/
+backend/target-local/
+backend/logs/
+backend/j.err
+backend/j.out
+
+# Local configuration and runtime data
+.env
+.env.*
+!.env.example
+storage/uploads/*
+!storage/uploads/.gitkeep
+
+# Logs and crash reports
+*.log
+hs_err_pid*.log
+replay_pid*.log
+
+# Local packages and temporary files
+*.zip
+*.tmp
+*.swp
+tmp/
+frontend/tmp/
+frontend/_perm_test.txt
+docs/qa-lo-profile-geo-openapi/
+coverage/
+frontend/test-results/
+frontend/playwright-report/
+
+# Local release evidence and recovered workspaces
+.qa/
+qa/
+artifacts/
+release/
+.codex-patch-backup-*/
+BOOT-INF/
+tmpWeb/
+
+# Private data, customer originals, and local-only account material
+database/*.dump
+database/backups/
+database/winpress_full.sql
+database/media_channels.csv
+database/media_quotes.csv
+database/media-seed-manifest.json
+docs/TEST-ACCOUNTS.md
+docs/**/*.pdf
+docs/**/*.docx
+docs/**/*.xlsx
+docs/**/*.pptx
+docs/**/*.png
+docs/**/*.jpg
+docs/**/*.jpeg
+docs/**/*.webp
+docs/FIGMA-STATE.json
+*.7z
+
+# IDE and operating system files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+Desktop.ini

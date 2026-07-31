@@ -1,0 +1,34 @@
+server:
+  port: 8092
+
+spring:
+  datasource:
+    url: jdbc:postgresql://127.0.0.1:55432/winpress_commercial
+    username: winpress
+    password: replace_before_production
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6380
+      password: replace_before_production
+
+springdoc:
+  api-docs:
+    enabled: ${WINPRESS_API_DOCS_ENABLED:false}
+  swagger-ui:
+    enabled: ${WINPRESS_API_DOCS_ENABLED:false}
+
+winpress:
+  storage-path: ../storage/uploads
+  cors-origins: https://winpress.cn,https://winpress.waykey.net
+  federation:
+    # GEO 联动默认关闭。仅在双方完成契约、回调、限流和凭据验收后启用。
+    enabled: false
+    migrate-on-start: false
+    shared-secret: ""
+    platform-issuer: niumedia-platform
+    winpress-issuer: winpress-commercial
+    source-instance-id: production-a
+    geo-callback-url: ""
+    callback-timeout-seconds: 15
+    max-requests-per-minute: 120

@@ -1,0 +1,74 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: winpress-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-winpress_commercial}
+      POSTGRES_USER: ${POSTGRES_USER:-winpress}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-winpress_dev_password}
+      TZ: Asia/Shanghai
+    ports:
+      - "${POSTGRES_PORT:-55432}:5432"
+    volumes:
+      - winpress_postgres_data:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./database/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+      - ./database/10-brand-case-demo-data.sql:/docker-entrypoint-initdb.d/02z-brand-case-demo-data.sql:ro
+      - ./database/03-media-import.sql:/docker-entrypoint-initdb.d/03-media-import.sql:ro
+      - ./database/04-normalize-public-channel-data.sql:/docker-entrypoint-initdb.d/04-normalize-public-channel-data.sql:ro
+      - ./database/13-conference-progressive-intake.sql:/docker-entrypoint-initdb.d/13-conference-progressive-intake.sql:ro
+      - ./database/14-supplier-orders-and-conference-workbench.sql:/docker-entrypoint-initdb.d/14-supplier-orders-and-conference-workbench.sql:ro
+      - ./database/15-niumedia-reporter-and-multi-invitation.sql:/docker-entrypoint-initdb.d/15-niumedia-reporter-and-multi-invitation.sql:ro
+      - ./database/16-media-partnership-inquiry.sql:/docker-entrypoint-initdb.d/16-media-partnership-inquiry.sql:ro
+      - ./database/17-local-demo-writing-assignment.sql:/docker-entrypoint-initdb.d/17-local-demo-writing-assignment.sql:ro
+      - ./database/18-service-intake-tasks.sql:/docker-entrypoint-initdb.d/18-service-intake-tasks.sql:ro
+      - ./database/19-activity-project-linkage.sql:/docker-entrypoint-initdb.d/19-activity-project-linkage.sql:ro
+      - ./database/20-direct-manuscript-source.sql:/docker-entrypoint-initdb.d/20-direct-manuscript-source.sql:ro
+      - ./database/21-manual-media-invitation-pending-verification.sql:/docker-entrypoint-initdb.d/21-manual-media-invitation-pending-verification.sql:ro
+      - ./database/22-service-intake-title-integrity.sql:/docker-entrypoint-initdb.d/22-service-intake-title-integrity.sql:ro
+      - ./database/23-settlement-transaction-ledger.sql:/docker-entrypoint-initdb.d/23-settlement-transaction-ledger.sql:ro
+      - ./database/24-requirement-idempotency.sql:/docker-entrypoint-initdb.d/24-requirement-idempotency.sql:ro
+      - ./database/25-task-acceptance-integrity.sql:/docker-entrypoint-initdb.d/25-task-acceptance-integrity.sql:ro
+      - ./database/26-channel-quote-integrity.sql:/docker-entrypoint-initdb.d/26-channel-quote-integrity.sql:ro
+      - ./database/27-media-invitation-progress-integrity.sql:/docker-entrypoint-initdb.d/27-media-invitation-progress-integrity.sql:ro
+      - ./database/28-publish-task-terminal-integrity.sql:/docker-entrypoint-initdb.d/28-publish-task-terminal-integrity.sql:ro
+      - ./database/29-publish-plan-idempotency.sql:/docker-entrypoint-initdb.d/29-publish-plan-idempotency.sql:ro
+      - ./database/30-settlement-transaction-idempotency.sql:/docker-entrypoint-initdb.d/30-settlement-transaction-idempotency.sql:ro
+      - ./database/31-batch-quote-adjustment-idempotency.sql:/docker-entrypoint-initdb.d/31-batch-quote-adjustment-idempotency.sql:ro
+      - ./database/32-publish-plan-service-integrity.sql:/docker-entrypoint-initdb.d/32-publish-plan-service-integrity.sql:ro
+      - ./database/33-supplier-api-connections.sql:/docker-entrypoint-initdb.d/33-supplier-api-connections.sql:ro
+      - ./database/34-open-api-management.sql:/docker-entrypoint-initdb.d/34-open-api-management.sql:ro
+      - ./database/35-release-governance-and-evidence.sql:/docker-entrypoint-initdb.d/35-release-governance-and-evidence.sql:ro
+      - ./database/36-schema-migration-ledger.sql:/docker-entrypoint-initdb.d/36-schema-migration-ledger.sql:ro
+      - ./database/37-media-pr-result-integrity.sql:/docker-entrypoint-initdb.d/37-media-pr-result-integrity.sql:ro
+      - ./database/38-writing-assignment-slot-schedule-integrity.sql:/docker-entrypoint-initdb.d/38-writing-assignment-slot-schedule-integrity.sql:ro
+      - ./database/39-writing-assignment-radius-integrity.sql:/docker-entrypoint-initdb.d/39-writing-assignment-radius-integrity.sql:ro
+      - ./database/40-conference-work-item-state-integrity.sql:/docker-entrypoint-initdb.d/40-conference-work-item-state-integrity.sql:ro
+      - ./database/41-conference-media-candidate-state-integrity.sql:/docker-entrypoint-initdb.d/41-conference-media-candidate-state-integrity.sql:ro
+      - ./database/media_channels.csv:/docker-entrypoint-initdb.d/media_channels.csv:ro
+      - ./database/media_quotes.csv:/docker-entrypoint-initdb.d/media_quotes.csv:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-winpress} -d ${POSTGRES_DB:-winpress_commercial}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: winpress-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-winpress_redis_dev_password}
+    ports:
+      - "${REDIS_PORT:-6380}:6379"
+    volumes:
+      - winpress_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-winpress_redis_dev_password}", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  winpress_postgres_data:
+  winpress_redis_data:

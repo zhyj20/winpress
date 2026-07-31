@@ -1,0 +1,11 @@
+# Public marketing routes may be crawled unless stated below.
+User-agent: *
+Disallow: /cases/industry-forum
+Disallow: /cases/chipsea-computex-2026
+Disallow: /case-materials/
+Disallow: /case-media/
+Disallow: /files/
+
+# Original project materials are not deployed to this site. These rules complement
+# the X-Robots-Tag response header and the server-side deny route; they are not an
+# authorization mechanism for private files.

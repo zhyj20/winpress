@@ -1,0 +1,12 @@
+{
+  "extends": "@vue/tsconfig/tsconfig.dom.json",
+  "include": ["env.d.ts", "src/**/*.ts", "src/**/*.tsx", "src/**/*.vue"],
+  "compilerOptions": {
+    "tsBuildInfoFile": "./tsconfig.app.tsbuildinfo.tmp",
+    "baseUrl": ".",
+    "paths": { "@/*": ["./src/*"] },
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true
+  }
+}
