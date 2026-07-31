@@ -47,7 +47,7 @@ storage/     本地文件存储目录
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/rebuild-local-demo.ps1
 ```
 
-公开 GitHub 源码默认只挂载字段表头样例，不携带任何媒体目录、报价、供应商成本或客户原件；因此可完成结构性启动与界面开发，但不会把它误表述为可用的外部媒体能力。获得书面授权的本机数据只能在受控 `.env` 中设置 `WINPRESS_MEDIA_CHANNELS_CSV` 与 `WINPRESS_MEDIA_QUOTES_CSV` 后使用，两个文件均不得提交。公开镜像的完整边界见 [docs/GITHUB-PUBLIC-SOURCE-BOUNDARY.md](docs/GITHUB-PUBLIC-SOURCE-BOUNDARY.md)。
+公开 GitHub 源码默认只挂载字段表头样例，不携带任何媒体目录、报价、供应商成本、客户原件或测试账号清单；因此可完成结构性启动、数据库导入和界面开发，但不会把它误表述为可用的外部媒体能力。获得书面授权的本机数据只能在受控 `.env` 中设置 `WINPRESS_MEDIA_CHANNELS_CSV` 与 `WINPRESS_MEDIA_QUOTES_CSV` 后使用，两个文件均不得提交。公开镜像的完整边界见 [docs/GITHUB-PUBLIC-SOURCE-BOUNDARY.md](docs/GITHUB-PUBLIC-SOURCE-BOUNDARY.md)。
 
 该入口会先预检端口、在临时源码副本中测试并打包后端、再重建前后端镜像并等待健康检查。后端镜像只复制 `backend/target-local/` 中的受控 JAR；因此不要直接用 `docker compose ... --build` 代替此入口，否则可能把上一次准备的 JAR 当作当前后端源码部署。
 
@@ -67,7 +67,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/rebuild-local-demo.p
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-clean-local-db.ps1
 ```
 
-该回归使用不开放端口、运行结束自动清理的临时 PostgreSQL 容器；它只核验数据库结构和受控静态种子导入，不表示外部媒体数据、供应商履约或生产环境已验收。
+该回归使用不开放端口、运行结束自动清理的临时 PostgreSQL 容器。公开源码会自动采用字段表头样例并核验结构性导入；受控本机环境如存在获批 CSV，则自动核验该输入的一致性。受控账号说明存在时才会附加 bcrypt 登录哈希核验；公开复现可显式使用 `-SkipAccountHashVerification`。任何一种模式都不表示外部媒体数据、供应商履约或生产环境已验收。
 
 需要确认当前本机演示库能够从二进制备份恢复时，运行：
 
@@ -213,8 +213,7 @@ docker compose -f docker-compose.v4_1-qa.yml up -d
 
 ## 本机测试账号
 
-本机种子包含平台运营、发布运营和客户三类测试身份。用户名、权限和本机密码只记录在
-[docs/TEST-ACCOUNTS.md](docs/TEST-ACCOUNTS.md)，不在 README、前端页面、静态资源或构建产物中公开。生产编排不导入这些账号。
+本机种子包含平台运营、发布运营和客户三类测试身份。用户名、权限和本机密码只记录在受控工作区的 `docs/TEST-ACCOUNTS.md`；该文件有意不进入 GitHub 公开源码、README、前端页面、静态资源或构建产物。生产编排不导入这些账号。公开克隆可完成结构回归；涉及真实本机账号的登录回归必须由部署负责人在版本控制之外提供该受控文件。
 
 如本机旧演示卷的账号无法登录，只能运行文档所列的本机重置脚本；脚本固定拒绝生产或其他 Compose 目标，并会同步所有受控本机演示账号后撤销旧会话。
 

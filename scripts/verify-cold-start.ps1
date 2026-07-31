@@ -1,10 +1,16 @@
 param(
-  [string]$Container = "winpress-coldstart-qa-20260728"
+  [string]$Container = "winpress-coldstart-qa-20260728",
+  [string]$MediaChannelsCsv,
+  [string]$MediaQuotesCsv
 )
 
 $ErrorActionPreference = "Stop"
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $databaseDir = (Resolve-Path (Join-Path $projectRoot "database")).Path
+. (Join-Path $PSScriptRoot 'lib\MediaSeedInputs.ps1')
+$mediaSeed = Resolve-WinPressMediaSeedInputs -ProjectRoot $projectRoot -MediaChannelsCsv $MediaChannelsCsv -MediaQuotesCsv $MediaQuotesCsv
+$expectedMediaChannels = [int]$mediaSeed.ChannelCount
+$expectedMediaQuotes = [int]$mediaSeed.QuoteCount
 $started = $false
 
 $mounts = @(
@@ -41,9 +47,7 @@ $mounts = @(
   @("38-writing-assignment-slot-schedule-integrity.sql", "38-writing-assignment-slot-schedule-integrity.sql"),
   @("39-writing-assignment-radius-integrity.sql", "39-writing-assignment-radius-integrity.sql"),
   @("40-conference-work-item-state-integrity.sql", "40-conference-work-item-state-integrity.sql"),
-  @("41-conference-media-candidate-state-integrity.sql", "41-conference-media-candidate-state-integrity.sql"),
-  @("media_channels.csv", "media_channels.csv"),
-  @("media_quotes.csv", "media_quotes.csv")
+  @("41-conference-media-candidate-state-integrity.sql", "41-conference-media-candidate-state-integrity.sql")
 )
 
 $existing = docker ps -a --filter "name=^/${Container}$" --format "{{.Names}}"
@@ -70,6 +74,12 @@ foreach ($mount in $mounts) {
     "type=bind,source=$source,target=/docker-entrypoint-initdb.d/$($mount[1]),readonly"
   )
 }
+$dockerArgs += @(
+  "--mount",
+  "type=bind,source=$($mediaSeed.ChannelsPath),target=/docker-entrypoint-initdb.d/media_channels.csv,readonly",
+  "--mount",
+  "type=bind,source=$($mediaSeed.QuotesPath),target=/docker-entrypoint-initdb.d/media_quotes.csv,readonly"
+)
 $dockerArgs += "postgres:17-alpine"
 
 try {
@@ -111,7 +121,8 @@ try {
 
   $tables = [int](docker exec $Container psql -U winpress -d winpress_coldstart -tAc "SELECT count(*) FROM information_schema.tables WHERE table_schema='public'")
   $channels = [int](docker exec $Container psql -U winpress -d winpress_coldstart -tAc "SELECT count(*) FROM publish_channel")
-  $quotes = [int](docker exec $Container psql -U winpress -d winpress_coldstart -tAc "SELECT count(*) FROM channel_quote WHERE status='ACTIVE' AND valid_until>CURRENT_TIMESTAMP")
+  $quotes = [int](docker exec $Container psql -U winpress -d winpress_coldstart -tAc "SELECT count(*) FROM channel_quote")
+  $activeQuotes = [int](docker exec $Container psql -U winpress -d winpress_coldstart -tAc "SELECT count(*) FROM channel_quote WHERE status='ACTIVE' AND valid_until>CURRENT_TIMESTAMP")
   $users = [int](docker exec $Container psql -U winpress -d winpress_coldstart -tAc "SELECT count(*) FROM app_user")
   $transactionLedgerReady = docker exec $Container psql -U winpress -d winpress_coldstart -tAc "SELECT to_regclass('public.settlement_transaction') IS NOT NULL AND EXISTS (SELECT 1 FROM pg_constraint WHERE conname='ck_settlement_transaction_evidence' AND conrelid='public.settlement_transaction'::regclass) AND EXISTS (SELECT 1 FROM pg_constraint WHERE conname='ck_settlement_transaction_submission_pair' AND conrelid='public.settlement_transaction'::regclass) AND to_regclass('public.uq_settlement_transaction_submission_key') IS NOT NULL"
   $taskAcceptanceReady = docker exec $Container psql -U winpress -d winpress_coldstart -tAc "SELECT EXISTS (SELECT 1 FROM pg_constraint WHERE conname='ck_publish_task_status' AND conrelid='public.publish_task'::regclass) AND EXISTS (SELECT 1 FROM pg_constraint WHERE conname='ck_media_pr_invitation_status' AND conrelid='public.media_pr_invitation'::regclass) AND EXISTS (SELECT 1 FROM pg_constraint WHERE conname='ck_result_link_status' AND conrelid='public.result_link'::regclass) AND to_regclass('public.uq_result_link_task_url') IS NOT NULL"
@@ -292,10 +303,15 @@ ROLLBACK;
     throw 'Cold-start conference media-candidate database guard rejection test failed.'
   }
 
-  if ($tables -lt 47 -or $channels -lt 22000 -or $quotes -lt 22000 -or $users -lt 3 -or $transactionLedgerReady -ne 't' -or $taskAcceptanceReady -ne 't' -or $publishPlanServiceReady -ne 't' -or $openApiReady -ne 't' -or $releaseGovernanceReady -ne 't' -or $schemaMigrationLedgerReady -ne 't' -or $writingAssignmentScheduleIntegrityReady -ne 't' -or $conferenceWorkItemIntegrityReady -ne 't' -or $conferenceMediaCandidateIntegrityReady -ne 't' -or $mediaResultGuardReady -ne 't') {
-    throw "Cold-start assertions failed: tables=$tables channels=$channels quotes=$quotes users=$users transaction_ledger=$transactionLedgerReady task_acceptance=$taskAcceptanceReady publish_plan_service=$publishPlanServiceReady open_api=$openApiReady release_governance=$releaseGovernanceReady migration_ledger=$schemaMigrationLedgerReady writing_assignment_schedule=$writingAssignmentScheduleIntegrityReady conference_work_item=$conferenceWorkItemIntegrityReady conference_media_candidate=$conferenceMediaCandidateIntegrityReady media_result_guard=$mediaResultGuardReady"
+  $mediaSeedCountsMatch = if ($mediaSeed.Mode -eq 'PUBLIC_HEADERS_ONLY') {
+    $channels -ge 4 -and $quotes -ge 3
+  } else {
+    $channels -eq $expectedMediaChannels -and $quotes -eq $expectedMediaQuotes
   }
-  Write-Output "cold-start-ok tables=$tables channels=$channels active_quotes=$quotes users=$users transaction_ledger=ready task_acceptance=ready publish_plan_service=ready open_api=ready release_governance=ready migration_ledger=ready writing_assignment_schedule=ready conference_work_item=ready conference_media_candidate=ready media_result_guard=ready"
+  if ($tables -lt 47 -or -not $mediaSeedCountsMatch -or $users -lt 3 -or $transactionLedgerReady -ne 't' -or $taskAcceptanceReady -ne 't' -or $publishPlanServiceReady -ne 't' -or $openApiReady -ne 't' -or $releaseGovernanceReady -ne 't' -or $schemaMigrationLedgerReady -ne 't' -or $writingAssignmentScheduleIntegrityReady -ne 't' -or $conferenceWorkItemIntegrityReady -ne 't' -or $conferenceMediaCandidateIntegrityReady -ne 't' -or $mediaResultGuardReady -ne 't') {
+    throw "Cold-start assertions failed: media_seed_mode=$($mediaSeed.Mode) expected_channels=$expectedMediaChannels expected_quotes=$expectedMediaQuotes tables=$tables channels=$channels quotes=$quotes active_quotes=$activeQuotes users=$users transaction_ledger=$transactionLedgerReady task_acceptance=$taskAcceptanceReady publish_plan_service=$publishPlanServiceReady open_api=$openApiReady release_governance=$releaseGovernanceReady migration_ledger=$schemaMigrationLedgerReady writing_assignment_schedule=$writingAssignmentScheduleIntegrityReady conference_work_item=$conferenceWorkItemIntegrityReady conference_media_candidate=$conferenceMediaCandidateIntegrityReady media_result_guard=$mediaResultGuardReady"
+  }
+  Write-Output "cold-start-ok media_seed_mode=$($mediaSeed.Mode) input_channels=$expectedMediaChannels input_quotes=$expectedMediaQuotes tables=$tables channels=$channels quotes=$quotes active_quotes=$activeQuotes users=$users transaction_ledger=ready task_acceptance=ready publish_plan_service=ready open_api=ready release_governance=ready migration_ledger=ready writing_assignment_schedule=ready conference_work_item=ready conference_media_candidate=ready media_result_guard=ready external_media_data=not_asserted"
 }
 finally {
   if ($started) {

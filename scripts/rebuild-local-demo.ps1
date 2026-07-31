@@ -10,6 +10,10 @@ $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $composeFile = Join-Path $projectRoot 'docker-compose.local-demo.yml'
 $portCheck = Join-Path $PSScriptRoot 'check-ports.ps1'
 $prepareBackend = Join-Path $PSScriptRoot 'prepare-local-docker-backend.ps1'
+$defaultChannelsCsv = Join-Path $projectRoot 'database\media_channels.csv'
+$defaultQuotesCsv = Join-Path $projectRoot 'database\media_quotes.csv'
+$originalChannelsCsv = $env:WINPRESS_MEDIA_CHANNELS_CSV
+$originalQuotesCsv = $env:WINPRESS_MEDIA_QUOTES_CSV
 
 function Invoke-Checked {
   param(
@@ -40,6 +44,15 @@ Invoke-Checked -FilePath 'powershell.exe' -Arguments @(
   '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $prepareBackend
 )
 
+if ([string]::IsNullOrWhiteSpace($originalChannelsCsv) -and [string]::IsNullOrWhiteSpace($originalQuotesCsv)) {
+  if ((Test-Path -LiteralPath $defaultChannelsCsv -PathType Leaf) -and (Test-Path -LiteralPath $defaultQuotesCsv -PathType Leaf)) {
+    $env:WINPRESS_MEDIA_CHANNELS_CSV = './database/media_channels.csv'
+    $env:WINPRESS_MEDIA_QUOTES_CSV = './database/media_quotes.csv'
+  }
+} elseif ([string]::IsNullOrWhiteSpace($originalChannelsCsv) -or [string]::IsNullOrWhiteSpace($originalQuotesCsv)) {
+  throw 'WINPRESS_MEDIA_CHANNELS_CSV and WINPRESS_MEDIA_QUOTES_CSV must be configured together.'
+}
+
 Push-Location $projectRoot
 try {
   Invoke-Checked -FilePath 'docker' -Arguments @(
@@ -53,4 +66,14 @@ try {
 }
 finally {
   Pop-Location
+  if ($null -eq $originalChannelsCsv) {
+    Remove-Item Env:WINPRESS_MEDIA_CHANNELS_CSV -ErrorAction SilentlyContinue
+  } else {
+    $env:WINPRESS_MEDIA_CHANNELS_CSV = $originalChannelsCsv
+  }
+  if ($null -eq $originalQuotesCsv) {
+    Remove-Item Env:WINPRESS_MEDIA_QUOTES_CSV -ErrorAction SilentlyContinue
+  } else {
+    $env:WINPRESS_MEDIA_QUOTES_CSV = $originalQuotesCsv
+  }
 }

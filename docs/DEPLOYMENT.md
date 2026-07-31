@@ -117,7 +117,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-production-co
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-clean-local-db.ps1
 ```
 
-该脚本会在无宿主机端口映射的临时 PostgreSQL 容器中加载与本机演示相同的受控初始化文件，核验四服务关键结构、活动关联与稿件来源字段、静态 CSV 的渠道/报价行数，以及受控本机账号说明对应的 bcrypt 哈希。结束后自动删除临时容器和暂存目录；它不连接当前数据卷、不修改生产库，也不证明外部媒体数据、供应商履约或实时接口已经验收。
+该脚本会在无宿主机端口映射的临时 PostgreSQL 容器中加载与本机演示相同的初始化结构，核验四服务关键结构、活动关联与稿件来源字段。公开源码默认使用仅含表头的 CSV 样例，验证导入结构而不制造媒体数据；受控本机环境可通过参数或 `WINPRESS_MEDIA_CHANNELS_CSV`、`WINPRESS_MEDIA_QUOTES_CSV` 提供已批准的本地输入，脚本才核对其渠道/报价行数。受控账号说明存在时才核验 bcrypt 哈希；公开克隆不会要求或伪造测试账号。结束后自动删除临时容器和暂存目录；它不连接当前数据卷、不修改生产库，也不证明外部媒体数据、供应商履约或实时接口已经验收。
 
 如需验证当前本机演示数据卷的 PostgreSQL 二进制备份确实可恢复，可运行：
 

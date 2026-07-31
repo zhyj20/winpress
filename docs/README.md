@@ -19,12 +19,13 @@
 | `COMMERCIAL-COPY-IA-QA-20260731.md` | 客户可见营销页标题、说明文字与旧站文章入口的商业文案收口记录 |
 | `OPEN-API-DOCUMENTATION-QA-20260731.md` | 开放 API 与后台管理接口认证标注、运行时规范和回归记录 |
 | `SUPPLIER-FULFILLMENT-CLOSURE-QA-20260731.md` | 供应商订单状态、异常重试、成果提交门禁与管理员履约轨迹的本机闭环回归记录 |
+| `PUBLIC-SOURCE-REPRODUCIBILITY-QA-20260731.md` | GitHub 公开源码与受控本机媒体输入的双模式冷初始化、回归边界与本次证据 |
 
 ## 受控本机验收资料
 
 | 文档 | 内容 |
 |---|---|
-| `TEST-ACCOUNTS.md` | 仅本机演示账号与角色验收路径；不进入生产或源码归档 |
+| `TEST-ACCOUNTS.md` | 仅受控本机演示账号与角色验收路径；不进入生产、GitHub 公开镜像或源码归档 |
 | `DEPLOYMENT-QA-20260726.md` | 历史 Docker 基线；当前结果须以 P0/P1 执行记录为准 |
 | `NIUMEDIA-MEDIA-SCREENING-QA-20260726.md` | 历史接口适配记录；正式授权、额度、许可与生产联调仍待确认 |
 

@@ -2,15 +2,26 @@
 param(
   [ValidateRange(20, 55)]
   [int]$StartupTimeoutSeconds = 55,
-  [string]$PostgresImage = 'postgres:17-alpine'
+  [string]$PostgresImage = 'postgres:17-alpine',
+  [string]$MediaChannelsCsv,
+  [string]$MediaQuotesCsv,
+  [string]$AccountDocument,
+  [switch]$SkipAccountHashVerification
 )
 
 $ErrorActionPreference = 'Stop'
 
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $databaseRoot = Join-Path $projectRoot 'database'
-$accountDocument = Join-Path $projectRoot 'docs\TEST-ACCOUNTS.md'
+$accountDocument = if ([string]::IsNullOrWhiteSpace($AccountDocument)) {
+  Join-Path $projectRoot 'docs\TEST-ACCOUNTS.md'
+} elseif ([System.IO.Path]::IsPathRooted($AccountDocument)) {
+  $AccountDocument
+} else {
+  Join-Path $projectRoot $AccountDocument
+}
 . (Join-Path $PSScriptRoot 'lib\LocalTestAccounts.ps1')
+. (Join-Path $PSScriptRoot 'lib\MediaSeedInputs.ps1')
 $temporaryRoot = [System.IO.Path]::GetTempPath().TrimEnd('\\')
 $runId = [Guid]::NewGuid().ToString('N')
 $stagingDirectory = Join-Path $temporaryRoot "winpress-clean-db-$runId"
@@ -54,9 +65,7 @@ $initFiles = @(
   @{ Source = '38-writing-assignment-slot-schedule-integrity.sql'; Destination = '38-writing-assignment-slot-schedule-integrity.sql' },
   @{ Source = '39-writing-assignment-radius-integrity.sql'; Destination = '39-writing-assignment-radius-integrity.sql' },
   @{ Source = '40-conference-work-item-state-integrity.sql'; Destination = '40-conference-work-item-state-integrity.sql' },
-  @{ Source = '41-conference-media-candidate-state-integrity.sql'; Destination = '41-conference-media-candidate-state-integrity.sql' },
-  @{ Source = 'media_channels.csv'; Destination = 'media_channels.csv' },
-  @{ Source = 'media_quotes.csv'; Destination = 'media_quotes.csv' }
+  @{ Source = '41-conference-media-candidate-state-integrity.sql'; Destination = '41-conference-media-candidate-state-integrity.sql' }
 )
 
 function Invoke-Docker {
@@ -81,7 +90,17 @@ function Remove-TemporaryArtifacts {
 }
 
 try {
-  $demoCredentials = @(Get-WinPressLocalDemoCredentials -AccountDocument $accountDocument)
+  $mediaSeed = Resolve-WinPressMediaSeedInputs -ProjectRoot $projectRoot -MediaChannelsCsv $MediaChannelsCsv -MediaQuotesCsv $MediaQuotesCsv
+  $demoCredentials = @()
+  $credentialVerification = if ($SkipAccountHashVerification) { 'skipped by caller' } else { 'not run: the controlled local account document is not available in this source checkout' }
+  if (-not $SkipAccountHashVerification) {
+    if (Test-Path -LiteralPath $accountDocument -PathType Leaf) {
+      $demoCredentials = @(Get-WinPressLocalDemoCredentials -AccountDocument $accountDocument)
+      $credentialVerification = 'verified against the controlled local account document'
+    } elseif (-not [string]::IsNullOrWhiteSpace($AccountDocument)) {
+      throw "Requested local test-account document was not found: $accountDocument"
+    }
+  }
   New-Item -ItemType Directory -Path $stagingDirectory | Out-Null
   foreach ($file in $initFiles) {
     $source = Join-Path $databaseRoot $file.Source
@@ -90,11 +109,10 @@ try {
     }
     Copy-Item -LiteralPath $source -Destination (Join-Path $stagingDirectory $file.Destination)
   }
-  $expectedMediaChannels = @((Import-Csv -LiteralPath (Join-Path $databaseRoot 'media_channels.csv') -Encoding UTF8).channel_no | Sort-Object -Unique).Count
-  $expectedMediaQuotes = @((Import-Csv -LiteralPath (Join-Path $databaseRoot 'media_quotes.csv') -Encoding UTF8).quote_no | Sort-Object -Unique).Count
-  if ($expectedMediaChannels -lt 1 -or $expectedMediaQuotes -lt 1) {
-    throw 'Static media seed files do not contain the expected identifiers.'
-  }
+  Copy-Item -LiteralPath $mediaSeed.ChannelsPath -Destination (Join-Path $stagingDirectory 'media_channels.csv')
+  Copy-Item -LiteralPath $mediaSeed.QuotesPath -Destination (Join-Path $stagingDirectory 'media_quotes.csv')
+  $expectedMediaChannels = [int]$mediaSeed.ChannelCount
+  $expectedMediaQuotes = [int]$mediaSeed.QuoteCount
 
   $mount = "${stagingDirectory}:/docker-entrypoint-initdb.d:ro"
   Invoke-Docker @(
@@ -579,7 +597,12 @@ SELECT json_build_object(
           $candidateReadiness = ($candidateRaw -join "`n") | ConvertFrom-Json
           $candidateCounts = ($candidateCountsRaw -join "`n") | ConvertFrom-Json
           $candidateMissing = @($candidateReadiness.PSObject.Properties | Where-Object { $_.Value -ne $true })
-          $seedCountsMatch = ([int]$candidateCounts.mediaChannels -eq $expectedMediaChannels) -and ([int]$candidateCounts.mediaQuotes -eq $expectedMediaQuotes) -and ([int]$candidateCounts.serviceIntakePlaceholderTitles -eq 0)
+          $seedCountsMatch = if ($mediaSeed.Mode -eq 'PUBLIC_HEADERS_ONLY') {
+            ([int]$candidateCounts.mediaChannels -ge 4) -and ([int]$candidateCounts.mediaQuotes -ge 3)
+          } else {
+            ([int]$candidateCounts.mediaChannels -eq $expectedMediaChannels) -and ([int]$candidateCounts.mediaQuotes -eq $expectedMediaQuotes)
+          }
+          $seedCountsMatch = $seedCountsMatch -and ([int]$candidateCounts.serviceIntakePlaceholderTitles -eq 0)
           if ($candidateMissing.Count -eq 0 -and $seedCountsMatch) {
             $readiness = $candidateReadiness
             $counts = $candidateCounts
@@ -892,33 +915,40 @@ ROLLBACK;
     throw 'Temporary database did not reject an overlapping confirmed writing assignment.'
   }
 
-  & docker exec $containerName psql -v ON_ERROR_STOP=1 -U $databaseUser -d $databaseName -c 'CREATE EXTENSION IF NOT EXISTS pgcrypto;' *> $null
-  if ($LASTEXITCODE -ne 0) { throw 'Temporary database could not enable the local-only bcrypt verification extension.' }
-  $credentialPredicates = foreach ($account in $demoCredentials) {
-    $usernameBase64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($account.Username))
-    $passwordBase64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($account.Password))
-    "(username=convert_from(decode('$usernameBase64','base64'),'UTF8') AND password_hash=crypt(convert_from(decode('$passwordBase64','base64'),'UTF8'),password_hash))"
-  }
-  $credentialSql = "SELECT count(*) FROM app_user WHERE $($credentialPredicates -join ' OR ');"
-  $verifiedDemoAccountsRaw = & docker exec $containerName psql -At -v ON_ERROR_STOP=1 -U $databaseUser -d $databaseName -c $credentialSql 2>$null
-  if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace(($verifiedDemoAccountsRaw -join ''))) {
-    throw 'Temporary database could not verify local demo-account password hashes.'
-  }
-  $verifiedDemoAccounts = [int](($verifiedDemoAccountsRaw -join '').Trim())
-  if ($verifiedDemoAccounts -ne $demoCredentials.Count) {
-    throw 'Clean local demo account hashes do not match the documented local test accounts.'
+  $verifiedDemoAccounts = $null
+  if ($demoCredentials.Count -gt 0) {
+    & docker exec $containerName psql -v ON_ERROR_STOP=1 -U $databaseUser -d $databaseName -c 'CREATE EXTENSION IF NOT EXISTS pgcrypto;' *> $null
+    if ($LASTEXITCODE -ne 0) { throw 'Temporary database could not enable the local-only bcrypt verification extension.' }
+    $credentialPredicates = foreach ($account in $demoCredentials) {
+      $usernameBase64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($account.Username))
+      $passwordBase64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($account.Password))
+      "(username=convert_from(decode('$usernameBase64','base64'),'UTF8') AND password_hash=crypt(convert_from(decode('$passwordBase64','base64'),'UTF8'),password_hash))"
+    }
+    $credentialSql = "SELECT count(*) FROM app_user WHERE $($credentialPredicates -join ' OR ');"
+    $verifiedDemoAccountsRaw = & docker exec $containerName psql -At -v ON_ERROR_STOP=1 -U $databaseUser -d $databaseName -c $credentialSql 2>$null
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace(($verifiedDemoAccountsRaw -join ''))) {
+      throw 'Temporary database could not verify local demo-account password hashes.'
+    }
+    $verifiedDemoAccounts = [int](($verifiedDemoAccountsRaw -join '').Trim())
+    if ($verifiedDemoAccounts -ne $demoCredentials.Count) {
+      throw 'Clean local demo account hashes do not match the documented local test accounts.'
+    }
   }
 
   [pscustomobject]@{
     Result = 'PASS'
-    InputMode = 'clean local demonstration baseline'
-    ExternalMediaData = 'not asserted; static seed integrity only'
+    InputMode = "clean local demonstration baseline; $($mediaSeed.Mode)"
+    ExternalMediaData = if ($mediaSeed.Mode -eq 'PUBLIC_HEADERS_ONLY') { 'not enabled; headers-only samples verify import structure only' } else { 'local input integrity only; authorization and external capability are not asserted' }
     WorkflowStructures = 'all required tables and columns present'
     MediaChannels = [int]$counts.mediaChannels
     MediaQuotes = [int]$counts.mediaQuotes
     ServiceIntakeTasks = [int]$counts.serviceIntakeTasks
     ServiceIntakePlaceholderTitles = [int]$counts.serviceIntakePlaceholderTitles
-    LocalDemoAccounts = $verifiedDemoAccounts
+    MediaSeedMode = $mediaSeed.Mode
+    MediaSeedInputChannels = $expectedMediaChannels
+    MediaSeedInputQuotes = $expectedMediaQuotes
+    LocalDemoAccounts = if ($null -eq $verifiedDemoAccounts) { 'not verified' } else { $verifiedDemoAccounts }
+    LocalDemoAccountHashVerification = $credentialVerification
   }
 }
 finally {
