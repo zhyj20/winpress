@@ -53,8 +53,8 @@
   回退前必须确认其中没有需要保留的后续本机演示事实，禁止以回退名义覆盖业务数据。
 - `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/verify-local-p0p1.ps1 -CreateActivityClosure`
   以退出码 `0` 完成。该脚本在 `docker-compose.local-demo.yml` 环境中新增带 `Local QA` 标记的测试活动，验证四项独立服务的项目、任务与订单映射，媒体邀请人工路径、直编发稿供应商履约凭据门禁、客户验收、跨客户拒绝及客户/运营/管理员字段与权限边界。
-- 运行时健康检查为应用、数据库和结构均 `UP`，结构版本为 `41`，API 合同为
-  `winpress-v4.2.30-20260731`；前端、后端、PostgreSQL 与 Redis 容器均为 `healthy`。
+- 运行时公共健康检查为应用、数据库和结构均 `UP`；迁移 `41` 与接口合同
+  `winpress-v4.2.30-20260731` 仅在受控源码、数据库台账和构建证据中核验，公共响应不回显这些部署元数据；前端、后端、PostgreSQL 与 Redis 容器均为 `healthy`。
 - 这次测试生成的数据只用于本机回归，不能解释为真实客户订单、真实媒体联系、真实供应商受理或生产履约。
 
 ## 2026-08-01 恢复与冷启动边界
@@ -72,6 +72,13 @@
 - `scripts/verify-local-settlement-idempotency.ps1` 通过：缺少幂等键被拒绝；同一收款请求只保留一笔账务事实；同一键改写金额被拒绝；脚本在结束时删除临时结算与审计记录。
 - `scripts/verify-local-batch-quote-idempotency.ps1` 通过：缺少幂等键被拒绝；同一批量调价重试返回原结果；同一键改写比例被拒绝；脚本在结束时删除临时渠道、报价与调价台账。
 - 未配置的 GEO 服务端联动端点 `POST /api/v1/integrations/geo/orders`、`/quotes` 及 `/catalog/direct-publishing-offers` 均返回 `503 FEDERATION_UNAVAILABLE`；未进入订单、报价或目录实际处理。
+
+### 公共健康信息收口
+
+- **问题与根因：** 匿名健康路由被 Docker 健康检查使用，但历史实现同时返回结构版本、接口合同和构建元数据；这些字段不是探针可用性所需，且与“公开响应不泄露部署内部信息”的边界不一致。
+- **修复：** `/api/v1/health` 现仅返回 `status`、`database`、`schemaStatus`。精确迁移 `41` 继续由同一后端结构就绪查询、受控数据库 `schema_migration_ledger`、源码构建和发布证据共同验证；部署文档与本机/生产演练脚本已同步，不再将公开字段当作版本门禁。
+- **验证：** 先行失败测试确认旧响应仍含字段；修复后 `HealthControllerTest`、完整 Java `172/172`、Java 打包、Vue 类型/格式/生产构建、`verify-local-p0p1.ps1`、隔离数据库/上传恢复、干净本机数据库和生产 Compose 静态边界检查均通过。运行态匿名响应为 HTTP `200`，仅含三项状态且均为 `UP`。
+- **回滚边界：** 本项未修改数据库结构、业务数据、服务状态、订单或外部接口。若回退，只回退健康响应字段、相应测试、脚本和文档；不得借回退动作覆盖本机业务数据或把内部版本字段重新公开。
 
 生产等价冷启动脚本曾在隔离容器健康等待阶段被当前自动化运行器中断；隔离镜像、临时容器、卷、网络、临时凭据和状态文件均已通过脚本的 `-CleanupOnly` 路径清理。由于未获得脚本最终“通过”输出，本记录**不把生产等价冷启动列为已验收**。应在可持续运行的预发布执行器中重新运行 `scripts/verify-production-cold-start.ps1`，并保留完整退出码与非敏感日志作为生产门禁证据。
 

@@ -457,11 +457,9 @@ try {
     -not $health.success -or
     [string]$health.data.status -ne 'UP' -or
     [string]$health.data.database -ne 'UP' -or
-    [string]$health.data.schemaStatus -ne 'UP' -or
-    [string]$health.data.schemaVersion -ne '41' -or
-    [string]$health.data.apiContractVersion -ne 'winpress-v4.2.30-20260731'
+    [string]$health.data.schemaStatus -ne 'UP'
   ) {
-    throw 'The isolated backend health or schema contract does not match the accepted baseline.'
+    throw 'The isolated backend generic readiness health check does not report the accepted database and schema state.'
   }
 
   if ((Get-HttpStatus -Uri $frontendUri) -ne 200) {

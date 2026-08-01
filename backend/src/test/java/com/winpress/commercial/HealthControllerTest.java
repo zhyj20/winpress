@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.winpress.commercial.controller.HealthController;
+import java.util.Set;
 import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.CannotGetJdbcConnectionException;
@@ -27,10 +28,12 @@ class HealthControllerTest {
     assertEquals(200, response.getStatusCode().value());
     assertTrue(response.getBody().success());
     assertEquals("UP", response.getBody().data().get("schemaStatus"));
-    assertEquals("41", response.getBody().data().get("schemaVersion"));
-    assertEquals(
-        "winpress-v4.2.30-20260731",
-        response.getBody().data().get("apiContractVersion"));
+    assertEquals(Set.of("status", "database", "schemaStatus"), response.getBody().data().keySet());
+    assertFalse(response.getBody().data().containsKey("version"));
+    assertFalse(response.getBody().data().containsKey("apiContractVersion"));
+    assertFalse(response.getBody().data().containsKey("schemaVersion"));
+    assertFalse(response.getBody().data().containsKey("buildCommit"));
+    assertFalse(response.getBody().data().containsKey("buildTime"));
     ArgumentCaptor<String> readinessSql = ArgumentCaptor.forClass(String.class);
     verify(jdbc).queryForObject(readinessSql.capture(), eq(Boolean.class));
     assertTrue(readinessSql.getValue().contains("trg_publish_task_terminal_integrity"));
@@ -82,7 +85,8 @@ class HealthControllerTest {
     assertEquals("SCHEMA_OUT_OF_DATE", response.getBody().code());
     assertEquals("UP", response.getBody().data().get("database"));
     assertEquals("OUT_OF_DATE", response.getBody().data().get("schemaStatus"));
-    assertEquals("unknown", response.getBody().data().get("schemaVersion"));
+    assertEquals(Set.of("status", "database", "schemaStatus"), response.getBody().data().keySet());
+    assertFalse(response.getBody().data().containsKey("schemaVersion"));
   }
 
   @Test

@@ -15,11 +15,10 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1")
 public class HealthController {
-  private static final String API_CONTRACT_VERSION = "winpress-v4.2.30-20260731";
-  private static final String SCHEMA_VERSION = "41";
   // Do not treat a source constant as proof that the active database has received the migrations
-  // required by the four-service workflow. The public response deliberately exposes only a
-  // generic readiness state, never table names, migration details, or deployment internals.
+  // required by the four-service workflow. This unauthenticated endpoint intentionally exposes
+  // only a generic readiness state; migration versions, API contracts and build metadata stay in
+  // the controlled deployment evidence and database migration ledger.
   private static final String SCHEMA_READINESS_SQL = """
       SELECT
         to_regclass('public.customer_requirement') IS NOT NULL
@@ -471,7 +470,7 @@ public class HealthController {
       if (!Boolean.TRUE.equals(schemaReady)) {
         return schemaOutOfDate();
       }
-      return ResponseEntity.ok(ApiResponse.ok(healthData("UP", "UP", "UP", SCHEMA_VERSION)));
+      return ResponseEntity.ok(ApiResponse.ok(healthData("UP", "UP", "UP")));
     } catch (DataAccessException exception) {
       return databaseUnavailable();
     }
@@ -482,7 +481,7 @@ public class HealthController {
         false,
         "SCHEMA_OUT_OF_DATE",
         "服务正在升级，请稍后重试",
-        healthData("DEGRADED", "UP", "OUT_OF_DATE", "unknown"),
+        healthData("DEGRADED", "UP", "OUT_OF_DATE"),
         OffsetDateTime.now());
     return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(response);
   }
@@ -492,27 +491,17 @@ public class HealthController {
         false,
         "DATABASE_UNAVAILABLE",
         "数据服务暂时不可用",
-        healthData("DOWN", "DOWN", "UNKNOWN", "unknown"),
+        healthData("DOWN", "DOWN", "UNKNOWN"),
         OffsetDateTime.now());
     return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(response);
   }
 
   private static Map<String, Object> healthData(
-      String status, String database, String schemaStatus, String schemaVersion) {
+      String status, String database, String schemaStatus) {
     Map<String, Object> data = new LinkedHashMap<>();
     data.put("status", status);
     data.put("database", database);
     data.put("schemaStatus", schemaStatus);
-    data.put("version", "1.0.0");
-    data.put("apiContractVersion", API_CONTRACT_VERSION);
-    data.put("schemaVersion", schemaVersion);
-    data.put("buildCommit", environment("WINPRESS_BUILD_COMMIT", "local"));
-    data.put("buildTime", environment("WINPRESS_BUILD_TIME", "not-supplied"));
     return data;
-  }
-
-  private static String environment(String name, String fallback) {
-    String value = System.getenv(name);
-    return value == null || value.isBlank() ? fallback : value.trim();
   }
 }

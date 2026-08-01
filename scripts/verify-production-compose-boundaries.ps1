@@ -216,8 +216,8 @@ foreach ($contractLine in @(
     throw "$($contractLine.Name) is not aligned with schema 41."
   }
 }
-if (-not $deploymentText.Contains('schemaVersion=41')) {
-  throw 'Deployment documentation does not require the current schemaVersion=41 health gate.'
+if (-not $deploymentText.Contains('schemaStatus=UP') -or -not $deploymentText.Contains('schema_migration_ledger')) {
+  throw 'Deployment documentation does not require both generic public readiness and controlled migration-ledger verification.'
 }
 
 foreach ($migrationPath in $boundaryMigrationPaths) {

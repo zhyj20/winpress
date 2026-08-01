@@ -279,8 +279,12 @@ $supplementalTokens = New-Object System.Collections.Generic.List[string]
 try {
   $health = Invoke-Json -Method GET -Path '/health'
   Add-Check -Name 'health payload' -Passed ($health.data.status -eq 'UP' -and $health.data.database -eq 'UP') -Detail 'backend and database UP'
-  Add-Check -Name 'current database schema readiness' -Passed ($health.data.schemaVersion -eq '41' -and $health.data.schemaStatus -eq 'UP') -Detail 'expected schema 41 conference checklist, candidate timeline, writing-slot, schedule and radius-integrity ledgers are verified by the running database'
-  Add-Check -Name 'current API contract version' -Passed ($health.data.apiContractVersion -eq 'winpress-v4.2.30-20260731') -Detail 'runtime contract matches the current customer-facing release'
+  Add-Check -Name 'current database schema readiness' -Passed ($health.data.schemaStatus -eq 'UP') -Detail 'the public health response exposes only generic readiness; its backend readiness query verifies the accepted schema 41 workflow, integrity and migration-ledger baseline without disclosing deployment metadata'
+  $healthFields = @($health.data.PSObject.Properties.Name)
+  Add-Check -Name 'public health hides deployment metadata' -Passed (
+    $healthFields.Count -eq 3 -and
+    @(('status', 'database', 'schemaStatus') | Where-Object { $_ -notin $healthFields }).Count -eq 0
+  ) -Detail 'only generic status, database and schema readiness fields are public'
 
   $anonymousFile = Invoke-Http -Method GET -Uri "$ApiBaseUrl/files/FIL-NOT-FOUND"
   Add-Check -Name 'anonymous file download is blocked' -Passed ($anonymousFile.Status -eq 401) -Detail "HTTP $($anonymousFile.Status)"

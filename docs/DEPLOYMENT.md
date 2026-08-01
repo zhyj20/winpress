@@ -391,7 +391,7 @@ server {
 4. 确认 `WINPRESS_CORS_ORIGINS` 只含正式域名。
 5. 检查上传目录权限、容量和备份策略。
 6. 验证 `/files/` 直接访问返回拒绝；以两个不同客户身份验证 `/api/v1/files/{fileNo}` 仅能下载各自项目材料。
-7. 访问 `/api/v1/health`，仅在 `status=UP`、`database=UP`、`schemaStatus=UP`、`schemaVersion=41` 且接口合同为 `winpress-v4.2.30-20260731` 时继续发布；若返回通用升级状态，先在受控环境核验并补齐数据库结构，禁止以源码版本号替代实际检查。
+7. 访问 `/api/v1/health`，仅在 `status=UP`、`database=UP`、`schemaStatus=UP` 时继续发布；再在受控数据库会话中核验 `schema_migration_ledger` 的迁移 `41`、脚本名和发布合同。公共健康接口不得回显结构版本、接口合同、构建提交或构建时间；若返回通用升级状态，先在受控环境核验并补齐数据库结构，禁止以源码版本号替代实际检查。
 8. 在新生产库只执行一次受控首个平台管理员开通，核对 `PLATFORM_ADMIN`、10 项权限和 `BOOTSTRAP_PLATFORM_ADMIN` 脱敏审计；禁止复制测试账号或二次运行开通工具。
 9. 对四项独立服务分别验证“下单 → 项目 → 任务 → 订单记录”的角色范围与状态。
 10. 媒体数据未完成授权时验证状态为待配置/不可用；完成授权后再进行单独的供应商与数据许可验收。
@@ -411,6 +411,6 @@ Compose 对数据库初始化脚本的挂载只会在新建数据卷时执行；
 
 `database/21-manual-media-invitation-pending-verification.sql`、`database/22-service-intake-title-integrity.sql`、`database/23-settlement-transaction-ledger.sql`、`database/24-requirement-idempotency.sql`、`database/25-task-acceptance-integrity.sql`、`database/26-channel-quote-integrity.sql`、`database/27-media-invitation-progress-integrity.sql`、`database/28-publish-task-terminal-integrity.sql`、`database/29-publish-plan-idempotency.sql`、`database/30-settlement-transaction-idempotency.sql`、`database/31-batch-quote-adjustment-idempotency.sql`、`database/32-publish-plan-service-integrity.sql`、`database/33-supplier-api-connections.sql`、`database/34-open-api-management.sql`、`database/35-release-governance-and-evidence.sql`、`database/36-schema-migration-ledger.sql`、`database/37-media-pr-result-integrity.sql`、`database/38-writing-assignment-slot-schedule-integrity.sql`、`database/39-writing-assignment-radius-integrity.sql`、`database/40-conference-work-item-state-integrity.sql` 和 `database/41-conference-media-candidate-state-integrity.sql`。
 
-完成后，健康接口必须返回 `schemaVersion=41`。迁移 40 遇到历史状态与完成时间矛盾时会停止；迁移 41 遇到候选状态、邀请／回复时间线或结果说明矛盾时会停止。数据库管理员不得用当前时间、推测值或空泛备注补齐，须由业务方先提供可核验依据。
+完成后，公共健康接口必须返回 `schemaStatus=UP`；数据库管理员须在受控会话中核验 `schema_migration_ledger` 已记录迁移 `41`。迁移 40 遇到历史状态与完成时间矛盾时会停止；迁移 41 遇到候选状态、邀请／回复时间线或结果说明矛盾时会停止。数据库管理员不得用当前时间、推测值或空泛备注补齐，须由业务方先提供可核验依据。
 
 迁移 21 只允许人工媒体邀请名单在“待项目核验”阶段不绑定执行渠道。它不导入媒体目录、报价或供应商，不生成供应商订单，也不使外部媒体数据变成已验收能力。迁移 22 只修复纯问号的服务受理标题并建立标题完整性约束，不会恢复或外推任何原始业务资料。迁移 23 只建立交易事实台账与凭据约束，不生成收款、退款、调整或核销记录；存量交易如需补录，必须逐笔核验后由管理员登记。迁移 24 只增加客户需求请求标识和摘要约束，不为历史需求伪造标识，也不改写项目、任务、订单、价格或履约状态。迁移 25 只建立状态和成果链接完整性约束，不生成成果或客户验收记录；运行时仍须通过服务端锁与权限校验完成验收。迁移 26 只验证并约束渠道报价，不调整金额、不选择供应商，也不把静态报价解释为实时可履约价格。迁移 27 只对齐已有邀约进度与任务终态，并关闭已完成的服务受理阶段；它不生成联系、回复、到场或报道事实。迁移 28 只建立任务终态保护并校验已验收任务具备核验成果，不生成任何新业务事实。迁移 29 只建立发布计划请求幂等约束，不为历史计划伪造标识，也不生成媒体选择、任务、订单、价格、供应商或履约事实。迁移 30 只建立结算交易请求幂等约束，不为历史交易伪造标识，也不生成收款、退款、调整、核销、发票或履约事实。迁移 31 只建立批量调价请求批次、摘要、状态和明细关联，不为历史调价伪造批次，不新增或改写客户价、成本价、供应商和外部渠道数据。迁移 32 只建立发布计划与服务类型的一致性保护，不改写历史错配记录，也不新增任务、订单、媒体、价格或供应商事实。迁移 33 只建立接口配置、验收门禁和历史组合审核记录；它不保存密钥、不发起外部请求、不启用真实履约，也不改写历史业务记录。迁移 34 只建立开放 API 应用、密钥哈希、受理回执和访问摘要结构；它不导入旧工具数据、不签发密钥、不发起第三方请求，也不改写既有项目、任务、订单或历史组合服务。迁移 35 只建立逐项证据、履约凭据和历史组合变更保护；它不证明外部授权已经取得，也不自动改变任何历史业务决定。迁移 36 只建立追加式结构台账基线，不回填旧迁移或业务事实。迁移 37 只验证媒体成果事实链；如完成态媒体任务缺少已核验成果、已发邀请或已报道记录，脚本会停止，不会补造或改写任何业务事实。迁移 38 只把已有真实写手信息映射为名额并新增档期冲突保护；当活跃派单缺少真实写手、服务时间，或历史多人接单无法无损还原时，脚本会停止，禁止自动补写、拆分或删除。迁移 39 将已配置的写手服务半径落实为活跃名额约束；半径已配置时，活跃名额必须具有人工核验距离且不得越界。它不定位、不推算、不填补历史距离，也不自动修改订单、价格、档期或履约事实。
