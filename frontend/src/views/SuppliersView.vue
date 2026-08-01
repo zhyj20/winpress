@@ -67,6 +67,16 @@ interface ChannelOption {
 
 type Tab = 'suppliers' | 'mappings' | 'orders'
 
+const SUPPLIER_ORDER_TRANSITIONS: Record<string, readonly string[]> = {
+  PENDING_SUBMISSION: ['PENDING_SUBMISSION', 'SUBMITTED', 'CANCELLED'],
+  SUBMITTED: ['SUBMITTED', 'ACCEPTED', 'IN_PROGRESS', 'EXCEPTION', 'CANCELLED'],
+  ACCEPTED: ['ACCEPTED', 'IN_PROGRESS', 'EXCEPTION', 'CANCELLED'],
+  IN_PROGRESS: ['IN_PROGRESS', 'COMPLETED', 'EXCEPTION', 'CANCELLED'],
+  EXCEPTION: ['EXCEPTION', 'PENDING_SUBMISSION', 'SUBMITTED', 'CANCELLED'],
+  COMPLETED: ['COMPLETED'],
+  CANCELLED: ['CANCELLED'],
+}
+
 const route = useRoute()
 const router = useRouter()
 const toast = useToastStore()
@@ -133,6 +143,11 @@ const grossMargin = computed(() => {
 const currentOrderSupplierIsEligible = computed(() => {
   if (!orderForm.supplierId) return true
   return orderSupplierOptions.value.some((item) => item.id === orderForm.supplierId)
+})
+
+const availableOrderStatuses = computed(() => {
+  const persistedStatus = orderTarget.value?.status || orderForm.status
+  return SUPPLIER_ORDER_TRANSITIONS[persistedStatus] || [persistedStatus]
 })
 
 function money(value?: number) {
@@ -881,14 +896,10 @@ onMounted(load)
         <label
           ><span class="field-label">订单状态<span class="required">*</span></span
           ><select v-model="orderForm.status" required>
-            <option value="PENDING_SUBMISSION">待提交</option>
-            <option value="SUBMITTED">已提交</option>
-            <option value="ACCEPTED">已接单</option>
-            <option value="IN_PROGRESS">执行中</option>
-            <option value="EXCEPTION">异常</option>
-            <option value="COMPLETED">供应商完成</option>
-            <option value="CANCELLED">取消</option>
-          </select></label
+            <option v-for="status in availableOrderStatuses" :key="status" :value="status">
+              {{ orderStatusLabel(status) }}
+            </option></select
+          ><small>仅显示当前订单可进入的状态；保存时仍由后端复核。</small></label
         >
         <label
           ><span class="field-label"

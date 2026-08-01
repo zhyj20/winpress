@@ -496,7 +496,7 @@ onMounted(loadStatus)
     <p v-if="checking" class="muted">正在连接媒体资料库…</p>
     <div v-else-if="!configured" class="media-discovery-unavailable">
       <template v-if="auth.user?.role === 'CUSTOMER'">
-        在线筛选暂不可用。你仍可人工补充拟邀对象，平台会在执行前核验。
+        在线筛选暂不可用，可人工补充候选名单，由项目负责人核验。
       </template>
       <template v-else>媒体检索服务尚未启用；记者检索依赖先选定媒体，请检查后台连接配置。</template>
     </div>

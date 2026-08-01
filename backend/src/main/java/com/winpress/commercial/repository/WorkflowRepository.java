@@ -4208,7 +4208,25 @@ public class WorkflowRepository {
                t.actual_publish_at AS "actualPublishAt", t.execution_note AS "executionNote",
                t.exception_reason AS "exceptionReason", t.status, op.display_name AS "operatorName",
                t.updated_at AS "updatedAt", mpi.status AS "mediaInvitationStatus",
-               mpi.invited_at AS "mediaInvitedAt", mpi.response_at AS "mediaRespondedAt"
+               mpi.invited_at AS "mediaInvitedAt", mpi.response_at AS "mediaRespondedAt",
+               CASE
+                 WHEN t.channel_type='MEDIA_PR' THEN mpi.status IN ('INVITED','RESPONDED','ATTENDING')
+                 WHEN t.channel_type='DIRECT_PUBLISHING' THEN
+                   NOT EXISTS (
+                     SELECT 1 FROM supplier_order pending_order
+                     WHERE pending_order.publish_task_id=t.id
+                       AND pending_order.supplier_id IS NOT NULL
+                   )
+                   OR EXISTS (
+                     SELECT 1 FROM supplier_order completed_order
+                     WHERE completed_order.publish_task_id=t.id
+                       AND completed_order.supplier_id IS NOT NULL
+                       AND completed_order.status='COMPLETED'
+                       AND completed_order.fulfillment_mode IN ('MANUAL','API')
+                       AND NULLIF(BTRIM(completed_order.submission_evidence_ref), '') IS NOT NULL
+                   )
+                 ELSE TRUE
+               END AS "resultReady"
         FROM publish_task t JOIN project p ON p.id=t.project_id LEFT JOIN manuscript m ON m.id=t.manuscript_id
         LEFT JOIN publish_channel c ON c.id=t.channel_id
         LEFT JOIN media_pr_invitation mpi ON mpi.publish_task_id=t.id

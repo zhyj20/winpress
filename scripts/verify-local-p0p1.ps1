@@ -279,8 +279,12 @@ $supplementalTokens = New-Object System.Collections.Generic.List[string]
 try {
   $health = Invoke-Json -Method GET -Path '/health'
   Add-Check -Name 'health payload' -Passed ($health.data.status -eq 'UP' -and $health.data.database -eq 'UP') -Detail 'backend and database UP'
-  Add-Check -Name 'current database schema readiness' -Passed ($health.data.schemaVersion -eq '41' -and $health.data.schemaStatus -eq 'UP') -Detail 'expected schema 41 conference checklist, candidate timeline, writing-slot, schedule and radius-integrity ledgers are verified by the running database'
-  Add-Check -Name 'current API contract version' -Passed ($health.data.apiContractVersion -eq 'winpress-v4.2.30-20260731') -Detail 'runtime contract matches the current customer-facing release'
+  Add-Check -Name 'current database schema readiness' -Passed ($health.data.schemaStatus -eq 'UP') -Detail 'the public health response exposes only generic readiness; its backend readiness query verifies the accepted schema 41 workflow, integrity and migration-ledger baseline without disclosing deployment metadata'
+  $healthFields = @($health.data.PSObject.Properties.Name)
+  Add-Check -Name 'public health hides deployment metadata' -Passed (
+    $healthFields.Count -eq 3 -and
+    @(('status', 'database', 'schemaStatus') | Where-Object { $_ -notin $healthFields }).Count -eq 0
+  ) -Detail 'only generic status, database and schema readiness fields are public'
 
   $anonymousFile = Invoke-Http -Method GET -Uri "$ApiBaseUrl/files/FIL-NOT-FOUND"
   Add-Check -Name 'anonymous file download is blocked' -Passed ($anonymousFile.Status -eq 401) -Detail "HTTP $($anonymousFile.Status)"
@@ -632,7 +636,7 @@ try {
   $projectPage = Invoke-Json -Method GET -Path '/projects?page=1&pageSize=20' -Headers $customerHeaders
   Add-Check -Name 'customer project summary uses field projection' -Passed (-not (Find-ExactForbiddenKey $projectPage.data.items @('operatorName','budget','supplierId','costPrice','upstreamReference'))) -Detail 'no internal owner or pricing fields'
   $customerPublishTasks = Invoke-Json -Method GET -Path '/publish-tasks?page=1&pageSize=20' -Headers $customerHeaders
-  Add-Check -Name 'customer publish task field boundary' -Passed (-not (Find-ExactForbiddenKey $customerPublishTasks.data.items @('id','manuscriptId','executionNote','exceptionReason','operatorName','supplierId','costPrice','upstreamReference'))) -Detail 'no internal task key or supplier fields'
+  Add-Check -Name 'customer publish task field boundary' -Passed (-not (Find-ExactForbiddenKey $customerPublishTasks.data.items @('id','manuscriptId','executionNote','exceptionReason','operatorName','supplierId','costPrice','upstreamReference','resultReady'))) -Detail 'no internal task key, supplier fields or internal readiness signal'
   $operatorResultAcceptance = Invoke-Http -Method POST -Uri "$ApiBaseUrl/publish-tasks/999999/accept" -Headers $operatorHeaders -Body @{}
   Add-Check -Name 'operator cannot accept customer results' -Passed ($operatorResultAcceptance.Status -eq 403) -Detail "HTTP $($operatorResultAcceptance.Status)"
   $customerWorkItems = Invoke-Json -Method GET -Path '/work-items?page=1&pageSize=100' -Headers $customerHeaders

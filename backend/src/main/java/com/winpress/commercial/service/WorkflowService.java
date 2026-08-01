@@ -1891,6 +1891,18 @@ public class WorkflowService {
     };
   }
 
+  private boolean settlementTransitionAllowed(String from, String to) {
+    if (from.equals(to)) return true;
+    return switch (from) {
+      case "PENDING" -> Set.of("CONFIRMED", "CANCELLED").contains(to);
+      case "CONFIRMED" -> Set.of("PAID", "CANCELLED").contains(to);
+      // A paid settlement is reopened only when a recorded refund makes the amount outstanding.
+      // A cancelled settlement must be replaced by a newly confirmed settlement, not revived.
+      case "PAID", "CANCELLED" -> false;
+      default -> false;
+    };
+  }
+
   public PageResult<Map<String, Object>> settlements(String status, int page, int pageSize) {
     CurrentUser.requireRole("PLATFORM_ADMIN");
     String normalizedStatus = normalizeOptional(status);
@@ -2043,6 +2055,12 @@ public class WorkflowService {
     Map<String, Object> settlement = repository.lockSettlementForUpdate(settlementId);
     if (settlement.isEmpty()) throw notFound("结算单不存在");
     requireCurrentSettlement(settlement);
+    if (!settlementTransitionAllowed(string(settlement.get("status")), normalizedStatus)) {
+      throw new BusinessException(
+          "INVALID_SETTLEMENT_TRANSITION",
+          "结算单不能从当前状态变更为所选状态",
+          HttpStatus.CONFLICT);
+    }
     long transactionCount = number(settlement.get("transactionCount"));
     if ("PAID".equals(normalizedStatus)
         && (transactionCount == 0

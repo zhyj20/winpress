@@ -229,7 +229,10 @@ test('首页营销页保持可读正文与紧凑的服务入口', async ({ page 
 
   const heroCopy = await page.locator('.home-hero-copy > p').evaluate((element) => {
     const style = window.getComputedStyle(element)
-    return { fontSize: Number.parseFloat(style.fontSize), lineHeight: Number.parseFloat(style.lineHeight) }
+    return {
+      fontSize: Number.parseFloat(style.fontSize),
+      lineHeight: Number.parseFloat(style.lineHeight),
+    }
   })
   expect(heroCopy.fontSize).toBeGreaterThanOrEqual(16)
   expect(heroCopy.lineHeight / heroCopy.fontSize).toBeGreaterThanOrEqual(1.65)
@@ -685,6 +688,175 @@ test('媒体与发布任务保留暂不推进状态的深链筛选', async ({ pa
   await page.screenshot({ path: testInfo.outputPath('tasks-not-proceeding.png'), fullPage: true })
 })
 
+test('媒体邀请任务只呈现当前状态允许的下一步操作', async ({ page }, testInfo) => {
+  const credentials = await loadAdminCredentials()
+  test.skip(
+    !credentials,
+    '请设置 WINPRESS_E2E_ADMIN_USERNAME 和 WINPRESS_E2E_ADMIN_PASSWORD 后执行媒体邀请状态机回归。',
+  )
+  if (!credentials) return
+
+  await signInForNavigationAudit(page, credentials)
+  const expectedOptions: Record<string, string[]> = {
+    PENDING: ['已发出邀请', '不再继续'],
+    INVITED: ['媒体已回复', '确认到场', '媒体婉拒', '不再继续'],
+    RESPONDED: ['确认到场', '媒体婉拒', '不再继续'],
+    ATTENDING: ['不再继续'],
+  }
+  let invitationStatus = 'PENDING'
+  await page.route('**/api/v1/publish-tasks**', async (route) => {
+    const url = new URL(route.request().url())
+    if (url.searchParams.get('channelType') !== 'MEDIA_PR') {
+      await route.continue()
+      return
+    }
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        code: 'OK',
+        message: '操作成功',
+        data: {
+          items: [
+            {
+              id: 981,
+              taskNo: 'PUB-UI-STATE-981',
+              projectId: 91,
+              projectNo: 'PRJ-UI-STATE-91',
+              projectName: '媒体邀请状态机界面回归',
+              channelType: 'MEDIA_PR',
+              channelName: '示例媒体',
+              manuscriptTitle: '示例活动资料',
+              operatorName: '平台运营',
+              status: 'PENDING_EXECUTION',
+              mediaInvitationStatus: invitationStatus,
+              updatedAt: '2026-08-01T12:00:00+08:00',
+            },
+          ],
+          total: 1,
+          page: 1,
+          pageSize: 15,
+        },
+        timestamp: '2026-08-01T12:00:00+08:00',
+      }),
+    })
+  })
+
+  for (const status of Object.keys(expectedOptions)) {
+    invitationStatus = status
+    await page.goto('/tasks?channelType=MEDIA_PR', { waitUntil: 'networkidle' })
+    const taskRow = page.locator('tbody tr').filter({ hasText: 'PUB-UI-STATE-981' }).first()
+    await expect(taskRow).toBeVisible()
+    await taskRow.getByRole('button', { name: '处理', exact: true }).click()
+
+    const dialog = page.getByRole('dialog')
+    await expect(dialog.getByLabel('沟通状态').locator('option')).toHaveText(
+      expectedOptions[status],
+    )
+
+    if (status === 'PENDING') {
+      await expect(dialog.getByRole('button', { name: '提交成果', exact: true })).toHaveCount(0)
+      await expect(
+        dialog.getByText('请先记录实际发出的媒体邀请，再回填可核验的报道链接。', {
+          exact: true,
+        }),
+      ).toBeVisible()
+    } else {
+      await expect(dialog.getByRole('button', { name: '提交成果', exact: true })).toBeVisible()
+    }
+
+    await dialog.getByRole('button', { name: '关闭', exact: true }).click()
+  }
+
+  await assertPageIntegrity(page)
+  await page.screenshot({
+    path: testInfo.outputPath('media-invitation-state-transitions.png'),
+    fullPage: true,
+  })
+})
+
+test('直编任务在履约核验前不显示成果回填入口', async ({ page }, testInfo) => {
+  const credentials = await loadAdminCredentials()
+  test.skip(
+    !credentials,
+    '请设置 WINPRESS_E2E_ADMIN_USERNAME 和 WINPRESS_E2E_ADMIN_PASSWORD 后执行直编履约门禁回归。',
+  )
+  if (!credentials) return
+
+  await signInForNavigationAudit(page, credentials)
+  let resultReady = false
+  await page.route('**/api/v1/publish-tasks**', async (route) => {
+    const url = new URL(route.request().url())
+    if (url.searchParams.get('channelType') !== 'DIRECT_PUBLISHING') {
+      await route.continue()
+      return
+    }
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        code: 'OK',
+        message: '操作成功',
+        data: {
+          items: [
+            {
+              id: 982,
+              taskNo: 'PUB-UI-FULFILLMENT-982',
+              projectId: 92,
+              projectNo: 'PRJ-UI-FULFILLMENT-92',
+              projectName: '直编履约门禁界面回归',
+              channelType: 'DIRECT_PUBLISHING',
+              channelName: '示例渠道',
+              manuscriptTitle: '示例定稿',
+              operatorName: '平台运营',
+              status: 'PENDING_EXECUTION',
+              resultReady,
+              updatedAt: '2026-08-01T12:00:00+08:00',
+            },
+          ],
+          total: 1,
+          page: 1,
+          pageSize: 15,
+        },
+        timestamp: '2026-08-01T12:00:00+08:00',
+      }),
+    })
+  })
+
+  await page.goto('/tasks?channelType=DIRECT_PUBLISHING', { waitUntil: 'networkidle' })
+  const taskRow = page.locator('tbody tr').filter({ hasText: 'PUB-UI-FULFILLMENT-982' }).first()
+  await taskRow.getByRole('button', { name: '处理', exact: true }).click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog.getByRole('button', { name: '提交成果', exact: true })).toHaveCount(0)
+  await expect(
+    dialog.getByText('履约核验尚未完成。请完成内部履约登记并保留可核验凭据后，再回填成果。', {
+      exact: true,
+    }),
+  ).toBeVisible()
+  await dialog.getByRole('button', { name: '关闭', exact: true }).click()
+
+  resultReady = true
+  await page.goto('/tasks?channelType=DIRECT_PUBLISHING', { waitUntil: 'networkidle' })
+  await page
+    .locator('tbody tr')
+    .filter({ hasText: 'PUB-UI-FULFILLMENT-982' })
+    .first()
+    .getByRole('button', {
+      name: '处理',
+      exact: true,
+    })
+    .click()
+  await expect(
+    page.getByRole('dialog').getByRole('button', { name: '提交成果', exact: true }),
+  ).toBeVisible()
+
+  await assertPageIntegrity(page)
+  await page.screenshot({
+    path: testInfo.outputPath('direct-publishing-fulfillment-result-gate.png'),
+    fullPage: true,
+  })
+})
+
 test('管理员接口管理页只显示待验收状态与凭据引用', async ({ page }) => {
   const credentials = await loadAdminCredentials()
   test.skip(
@@ -1006,7 +1178,7 @@ test('未验收媒体资料时，客户媒体邀请保留人工补充与核验�
   await expect(page).toHaveURL(/\/media-invitation$/)
   await expect(page.getByRole('heading', { name: '媒体邀请', exact: true })).toBeVisible()
   await expect(
-    page.getByText('在线筛选暂不可用。你仍可人工补充拟邀对象，平台会在执行前核验。'),
+    page.getByText('在线筛选暂不可用，可人工补充候选名单，由项目负责人核验。'),
   ).toBeVisible()
   await expect(page.getByRole('button', { name: '人工补充拟邀对象' })).toBeVisible()
 
@@ -1145,6 +1317,7 @@ test('平台运营可追溯供应商订单履约，移动端表单标题保持�
   const statusLabel = modal.locator('label').filter({ hasText: '订单状态' })
   await expect(statusLabel).toHaveCount(1)
   await expect(statusLabel.locator('.field-label')).toHaveText('订单状态*')
+  await expect(statusLabel.locator('select option')).toHaveText(['待提交', '已提交', '已取消'])
   const labelGeometry = await statusLabel.evaluate((label) => {
     const title = label.querySelector('.field-label')
     const mark = title?.querySelector('.required')
@@ -1168,6 +1341,65 @@ test('平台运营可追溯供应商订单履约，移动端表单标题保持�
   expect(errors).toEqual([])
   await page.screenshot({
     path: testInfo.outputPath('supplier-order-fulfillment.png'),
+    fullPage: true,
+  })
+})
+
+test('平台运营只能选择结算单的合法直接下一状态', async ({ page }, testInfo) => {
+  const credentials = await loadAdminCredentials()
+  test.skip(
+    !credentials,
+    '请设置 WINPRESS_E2E_ADMIN_USERNAME 和 WINPRESS_E2E_ADMIN_PASSWORD 后执行结算状态机回归。',
+  )
+  if (!credentials) return
+
+  await signInForNavigationAudit(page, credentials)
+  await page.goto('/admin/settlements', { waitUntil: 'networkidle' })
+  await expect(page.locator('h1')).toHaveText('结算与交易')
+
+  const pendingRow = page.locator('tbody tr').filter({ hasText: '待确认' }).first()
+  await expect(pendingRow).toBeVisible()
+  await expect(pendingRow.getByLabel(/结算状态$/).locator('option')).toHaveText([
+    '待确认',
+    '已确认',
+    '已取消',
+  ])
+
+  if (testInfo.project.name === 'mobile') {
+    await expect(pendingRow).toHaveCSS('display', 'grid')
+    const tableWidth = await page.locator('.table-wrap').evaluate((element) => ({
+      clientWidth: element.clientWidth,
+      scrollWidth: element.scrollWidth,
+    }))
+    expect(tableWidth.scrollWidth).toBeLessThanOrEqual(tableWidth.clientWidth + 1)
+  }
+
+  const rejectedTransition = await page.evaluate(async () => {
+    const token = localStorage.getItem('winpress_token')
+    if (!token) throw new Error('Expected an authenticated platform-admin session')
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    }
+    const listResponse = await fetch('/api/v1/admin/settlements?pageSize=100', { headers })
+    const listPayload = (await listResponse.json()) as {
+      data?: { items?: { id: number; status: string }[] }
+    }
+    const paid = listPayload.data?.items?.find((item) => item.status === 'PAID')
+    if (!paid) throw new Error('Expected a paid settlement in the local QA data')
+    const updateResponse = await fetch(`/api/v1/admin/settlements/${paid.id}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ status: 'CONFIRMED' }),
+    })
+    const updatePayload = (await updateResponse.json()) as { code?: string }
+    return { status: updateResponse.status, code: updatePayload.code }
+  })
+  expect(rejectedTransition).toEqual({ status: 409, code: 'INVALID_SETTLEMENT_TRANSITION' })
+
+  await assertPageIntegrity(page)
+  await page.screenshot({
+    path: testInfo.outputPath('settlement-state-transitions.png'),
     fullPage: true,
   })
 })

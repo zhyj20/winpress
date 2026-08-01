@@ -1551,7 +1551,8 @@ class WorkflowServiceTest {
         Map.entry("status", "PENDING_EXECUTION"), Map.entry("updatedAt", "2026-07-29T00:00:00Z"),
         Map.entry("executionNote", "内部执行备注"), Map.entry("exceptionReason", "内部异常"),
         Map.entry("operatorName", "内部执行人员"), Map.entry("supplierId", 91L),
-        Map.entry("costPrice", new BigDecimal("600.00")), Map.entry("upstreamReference", "provider-only")));
+        Map.entry("costPrice", new BigDecimal("600.00")), Map.entry("upstreamReference", "provider-only"),
+        Map.entry("resultReady", false)));
     when(repository.tasks(
         org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.isNull(),
         org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.isNull(),
@@ -1607,8 +1608,10 @@ class WorkflowServiceTest {
     assertFalse(taskList.items().get(0).containsKey("operatorName"));
     assertFalse(taskList.items().get(0).containsKey("supplierId"));
     assertFalse(taskList.items().get(0).containsKey("costPrice"));
+    assertFalse(taskList.items().get(0).containsKey("resultReady"));
     assertFalse(taskDetail.containsKey("id"));
     assertFalse(taskDetail.containsKey("upstreamReference"));
+    assertFalse(taskDetail.containsKey("resultReady"));
     @SuppressWarnings("unchecked")
     Map<String, Object> project = (Map<String, Object>) detail.get("project");
     assertFalse(project.containsKey("operatorName"));
@@ -1926,6 +1929,46 @@ class WorkflowServiceTest {
         BusinessException.class, () -> service.updateSettlement(9L, "PAID", null));
 
     assertEquals("SETTLEMENT_NOT_BALANCED", exception.getCode());
+    verify(repository, never()).updateSettlement(
+        org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyLong(),
+        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
+  }
+
+  @Test
+  void cancelledSettlementCannotBeReopenedByManualStatusUpdate() {
+    CurrentUser.set(new AuthPrincipal(1L, "USR-1", 1L, "平台", "admin", "平台运营",
+        "13800000001", "admin@example.com", "PLATFORM_ADMIN", List.of("settlement:manage")));
+    when(repository.lockSettlementForUpdate(9L)).thenReturn(Map.of(
+        "id", 9L,
+        "status", "CANCELLED",
+        "paidAmount", BigDecimal.ZERO,
+        "outstandingAmount", new BigDecimal("100.00"),
+        "transactionCount", 0L));
+
+    BusinessException exception = assertThrows(
+        BusinessException.class, () -> service.updateSettlement(9L, "CONFIRMED", null));
+
+    assertEquals("INVALID_SETTLEMENT_TRANSITION", exception.getCode());
+    verify(repository, never()).updateSettlement(
+        org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyLong(),
+        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
+  }
+
+  @Test
+  void paidSettlementCannotBeReopenedWithoutARecordedRefund() {
+    CurrentUser.set(new AuthPrincipal(1L, "USR-1", 1L, "平台", "admin", "平台运营",
+        "13800000001", "admin@example.com", "PLATFORM_ADMIN", List.of("settlement:manage")));
+    when(repository.lockSettlementForUpdate(9L)).thenReturn(Map.of(
+        "id", 9L,
+        "status", "PAID",
+        "paidAmount", new BigDecimal("100.00"),
+        "outstandingAmount", BigDecimal.ZERO,
+        "transactionCount", 1L));
+
+    BusinessException exception = assertThrows(
+        BusinessException.class, () -> service.updateSettlement(9L, "CONFIRMED", null));
+
+    assertEquals("INVALID_SETTLEMENT_TRANSITION", exception.getCode());
     verify(repository, never()).updateSettlement(
         org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyLong(),
         org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());

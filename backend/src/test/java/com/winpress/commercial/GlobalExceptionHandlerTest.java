@@ -7,6 +7,7 @@ import com.winpress.commercial.exception.GlobalExceptionHandler;
 import java.lang.reflect.Method;
 import org.junit.jupiter.api.Test;
 import org.springframework.core.MethodParameter;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
@@ -38,6 +39,16 @@ class GlobalExceptionHandlerTest {
     assertEquals(413, response.getStatusCode().value());
     assertFalse(response.getBody().success());
     assertEquals("FILE_TOO_LARGE", response.getBody().code());
+  }
+
+  @Test
+  void returnsBadRequestForMalformedJsonBody() {
+    var response = new GlobalExceptionHandler().handleUnreadableBody(
+        new HttpMessageNotReadableException("Malformed JSON"));
+
+    assertEquals(400, response.getStatusCode().value());
+    assertFalse(response.getBody().success());
+    assertEquals("INVALID_REQUEST_BODY", response.getBody().code());
   }
 
   @SuppressWarnings("unused")
