@@ -4,6 +4,7 @@ import com.winpress.commercial.config.ApiResponse;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -35,6 +36,13 @@ public class GlobalExceptionHandler {
       MethodArgumentTypeMismatchException ex) {
     return ResponseEntity.badRequest()
         .body(ApiResponse.error("INVALID_REQUEST_PARAMETER", "请求参数格式不正确"));
+  }
+
+  @ExceptionHandler(HttpMessageNotReadableException.class)
+  public ResponseEntity<ApiResponse<Void>> handleUnreadableBody(
+      HttpMessageNotReadableException ex) {
+    return ResponseEntity.badRequest()
+        .body(ApiResponse.error("INVALID_REQUEST_BODY", "请求正文不是有效 JSON"));
   }
 
   @ExceptionHandler(NoResourceFoundException.class)
