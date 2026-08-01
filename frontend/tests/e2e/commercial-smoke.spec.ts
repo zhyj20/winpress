@@ -1145,6 +1145,7 @@ test('平台运营可追溯供应商订单履约，移动端表单标题保持�
   const statusLabel = modal.locator('label').filter({ hasText: '订单状态' })
   await expect(statusLabel).toHaveCount(1)
   await expect(statusLabel.locator('.field-label')).toHaveText('订单状态*')
+  await expect(statusLabel.locator('select option')).toHaveText(['待提交', '已提交', '已取消'])
   const labelGeometry = await statusLabel.evaluate((label) => {
     const title = label.querySelector('.field-label')
     const mark = title?.querySelector('.required')

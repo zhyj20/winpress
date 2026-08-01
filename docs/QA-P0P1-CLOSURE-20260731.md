@@ -30,7 +30,7 @@
 | 后端单元与集成测试 | `backend\\mvnw.cmd test` | 169 个测试通过，0 failure / 0 error |
 | 前端静态检查 | `npm.cmd run check` | 通过 |
 | 前端生产构建 | `npm.cmd run build` | 通过 |
-| 前端端到端回归 | `npm.cmd run test:e2e` | 通过 |
+| 前端端到端回归 | 按 `desktop`、`tablet`、`mobile` 串行执行 Playwright | `108/108` 通过；详见 [`CROSS-VIEWPORT-E2E-QA-20260801.md`](CROSS-VIEWPORT-E2E-QA-20260801.md) |
 | 本机 P0/P1 权限与数据边界 | `scripts/verify-local-p0p1.ps1` | 通过 |
 | 四服务业务闭环 | `scripts/verify-local-p0p1.ps1 -CreateActivityClosure` | 通过；仅创建明确标记的本机 QA 活动数据 |
 | 本机容器健康 | Docker Compose + `/api/v1/health` | 前端、后端、PostgreSQL、Redis 均正常；数据库 schema 版本 41 |
@@ -55,6 +55,7 @@
   以退出码 `0` 完成。该脚本在 `docker-compose.local-demo.yml` 环境中新增带 `Local QA` 标记的测试活动，验证四项独立服务的项目、任务与订单映射，媒体邀请人工路径、直编发稿供应商履约凭据门禁、客户验收、跨客户拒绝及客户/运营/管理员字段与权限边界。
 - 运行时公共健康检查为应用、数据库和结构均 `UP`；迁移 `41` 与接口合同
   `winpress-v4.2.30-20260731` 仅在受控源码、数据库台账和构建证据中核验，公共响应不回显这些部署元数据；前端、后端、PostgreSQL 与 Redis 容器均为 `healthy`。
+- 三视口浏览器回归已分别取得最终 `passed` 状态：桌面、平板、移动各 36 项；供应商订单状态选择器修补后已再次完整回归。覆盖角色菜单、服务入口、订单/任务记录、供应商履约管理、客户字段投影和关键深链筛选。该证据只适用于当前本机 Docker 演示栈。
 - 这次测试生成的数据只用于本机回归，不能解释为真实客户订单、真实媒体联系、真实供应商受理或生产履约。
 
 ## 2026-08-01 恢复与冷启动边界
