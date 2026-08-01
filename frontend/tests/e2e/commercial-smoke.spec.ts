@@ -229,7 +229,10 @@ test('首页营销页保持可读正文与紧凑的服务入口', async ({ page 
 
   const heroCopy = await page.locator('.home-hero-copy > p').evaluate((element) => {
     const style = window.getComputedStyle(element)
-    return { fontSize: Number.parseFloat(style.fontSize), lineHeight: Number.parseFloat(style.lineHeight) }
+    return {
+      fontSize: Number.parseFloat(style.fontSize),
+      lineHeight: Number.parseFloat(style.lineHeight),
+    }
   })
   expect(heroCopy.fontSize).toBeGreaterThanOrEqual(16)
   expect(heroCopy.lineHeight / heroCopy.fontSize).toBeGreaterThanOrEqual(1.65)
@@ -1169,6 +1172,65 @@ test('平台运营可追溯供应商订单履约，移动端表单标题保持�
   expect(errors).toEqual([])
   await page.screenshot({
     path: testInfo.outputPath('supplier-order-fulfillment.png'),
+    fullPage: true,
+  })
+})
+
+test('平台运营只能选择结算单的合法直接下一状态', async ({ page }, testInfo) => {
+  const credentials = await loadAdminCredentials()
+  test.skip(
+    !credentials,
+    '请设置 WINPRESS_E2E_ADMIN_USERNAME 和 WINPRESS_E2E_ADMIN_PASSWORD 后执行结算状态机回归。',
+  )
+  if (!credentials) return
+
+  await signInForNavigationAudit(page, credentials)
+  await page.goto('/admin/settlements', { waitUntil: 'networkidle' })
+  await expect(page.locator('h1')).toHaveText('结算与交易')
+
+  const pendingRow = page.locator('tbody tr').filter({ hasText: '待确认' }).first()
+  await expect(pendingRow).toBeVisible()
+  await expect(pendingRow.getByLabel(/结算状态$/).locator('option')).toHaveText([
+    '待确认',
+    '已确认',
+    '已取消',
+  ])
+
+  if (testInfo.project.name === 'mobile') {
+    await expect(pendingRow).toHaveCSS('display', 'grid')
+    const tableWidth = await page.locator('.table-wrap').evaluate((element) => ({
+      clientWidth: element.clientWidth,
+      scrollWidth: element.scrollWidth,
+    }))
+    expect(tableWidth.scrollWidth).toBeLessThanOrEqual(tableWidth.clientWidth + 1)
+  }
+
+  const rejectedTransition = await page.evaluate(async () => {
+    const token = localStorage.getItem('winpress_token')
+    if (!token) throw new Error('Expected an authenticated platform-admin session')
+    const headers = {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    }
+    const listResponse = await fetch('/api/v1/admin/settlements?pageSize=100', { headers })
+    const listPayload = (await listResponse.json()) as {
+      data?: { items?: { id: number; status: string }[] }
+    }
+    const paid = listPayload.data?.items?.find((item) => item.status === 'PAID')
+    if (!paid) throw new Error('Expected a paid settlement in the local QA data')
+    const updateResponse = await fetch(`/api/v1/admin/settlements/${paid.id}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ status: 'CONFIRMED' }),
+    })
+    const updatePayload = (await updateResponse.json()) as { code?: string }
+    return { status: updateResponse.status, code: updatePayload.code }
+  })
+  expect(rejectedTransition).toEqual({ status: 409, code: 'INVALID_SETTLEMENT_TRANSITION' })
+
+  await assertPageIntegrity(page)
+  await page.screenshot({
+    path: testInfo.outputPath('settlement-state-transitions.png'),
     fullPage: true,
   })
 })

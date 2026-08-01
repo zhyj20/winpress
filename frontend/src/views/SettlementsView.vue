@@ -10,6 +10,20 @@ import type { ApiResponse, PageResult, SettlementTransactionType } from '@/types
 
 type SettlementStatus = 'PENDING' | 'CONFIRMED' | 'PAID' | 'CANCELLED'
 
+const SETTLEMENT_STATUS_LABELS: Record<SettlementStatus, string> = {
+  PENDING: '待确认',
+  CONFIRMED: '已确认',
+  PAID: '已结清',
+  CANCELLED: '已取消',
+}
+
+const SETTLEMENT_STATUS_TRANSITIONS: Record<SettlementStatus, readonly SettlementStatus[]> = {
+  PENDING: ['PENDING', 'CONFIRMED', 'CANCELLED'],
+  CONFIRMED: ['CONFIRMED', 'PAID', 'CANCELLED'],
+  PAID: ['PAID'],
+  CANCELLED: ['CANCELLED'],
+}
+
 interface Settlement {
   id: number
   settlementNo: string
@@ -69,6 +83,7 @@ const transactionTypes: {
 
 const toast = useToastStore()
 const items = ref<Settlement[]>([])
+const persistedSettlementStatuses = ref<Record<number, SettlementStatus>>({})
 const loading = ref(true)
 const error = ref('')
 const status = ref<SettlementStatus | ''>('')
@@ -157,6 +172,9 @@ async function load() {
       params: { status: status.value || undefined, pageSize: 100 },
     })
     items.value = data.data.items
+    persistedSettlementStatuses.value = Object.fromEntries(
+      items.value.map((item) => [item.id, item.status]),
+    )
     if (selectedSettlement.value) {
       const refreshed = items.value.find((item) => item.id === selectedSettlement.value?.id)
       if (refreshed) selectedSettlement.value = refreshed
@@ -166,6 +184,11 @@ async function load() {
   } finally {
     loading.value = false
   }
+}
+
+function availableSettlementStatuses(item: Settlement) {
+  const persistedStatus = persistedSettlementStatuses.value[item.id] || item.status
+  return SETTLEMENT_STATUS_TRANSITIONS[persistedStatus]
 }
 
 async function save(item: Settlement) {
@@ -397,15 +420,15 @@ onMounted(load)
             </thead>
             <tbody>
               <tr v-for="item in items" :key="item.id">
-                <td>
+                <td data-label="结算单" class="settlement-identity">
                   <strong>{{ item.settlementNo }}</strong>
                 </td>
-                <td>
-                  {{ item.organizationName }}
+                <td data-label="客户 / 项目" class="settlement-client">
+                  <strong class="settlement-organization">{{ item.organizationName }}</strong>
                   <small>{{ item.serviceLabel }} · {{ item.projectName }}</small>
                   <span v-if="item.archiveOnly" class="archive-badge">只读归档</span>
                 </td>
-                <td>
+                <td data-label="金额">
                   <dl class="settlement-amounts">
                     <div>
                       <dt>应结</dt>
@@ -427,7 +450,7 @@ onMounted(load)
                     </div>
                   </dl>
                 </td>
-                <td class="billing-cell">
+                <td data-label="账务信息" class="billing-cell">
                   <span>
                     到期：{{ item.dueAt ? new Date(item.dueAt).toLocaleDateString('zh-CN') : '—' }}
                   </span>
@@ -439,21 +462,25 @@ onMounted(load)
                     :disabled="item.archiveOnly"
                   />
                 </td>
-                <td>
+                <td data-label="结算状态" class="settlement-status-cell">
                   <select
                     v-model="item.status"
                     class="table-select"
                     :aria-label="`${item.settlementNo} 结算状态`"
                     :disabled="item.archiveOnly"
                   >
-                    <option value="PENDING">待确认</option>
-                    <option value="CONFIRMED">已确认</option>
-                    <option value="PAID">已结清</option>
-                    <option value="CANCELLED">已取消</option>
+                    <option
+                      v-for="itemStatus in availableSettlementStatuses(item)"
+                      :key="itemStatus"
+                      :value="itemStatus"
+                    >
+                      {{ SETTLEMENT_STATUS_LABELS[itemStatus] }}
+                    </option>
                   </select>
+                  <small>仅显示当前结算单可直接进入的状态；交易记录仍由后端复核。</small>
                   <StatusTag :status="item.status" />
                 </td>
-                <td>
+                <td data-label="操作" class="settlement-operation-cell">
                   <div class="settlement-actions">
                     <button
                       class="icon-button"
@@ -958,6 +985,87 @@ onMounted(load)
 }
 
 @media (max-width: 560px) {
+  .table-wrap {
+    overflow: visible;
+  }
+
+  .settlement-table {
+    display: block;
+    min-width: 0;
+  }
+
+  .settlement-table thead {
+    display: none;
+  }
+
+  .settlement-table tbody {
+    display: grid;
+    gap: 12px;
+  }
+
+  .settlement-table tr {
+    display: grid;
+    gap: 0;
+    padding: 14px 16px;
+    border: 1px solid #d8e0ea;
+    border-radius: 10px;
+    background: #fff;
+    box-shadow: 0 1px 2px rgb(16 24 40 / 4%);
+  }
+
+  .settlement-table td {
+    display: block;
+    padding: 10px 0;
+    border: 0;
+  }
+
+  .settlement-table td + td {
+    border-top: 1px solid #e8edf3;
+  }
+
+  .settlement-table td::before {
+    display: block;
+    margin-bottom: 5px;
+    color: #667085;
+    content: attr(data-label);
+    font-size: 12px;
+    font-weight: 650;
+  }
+
+  .settlement-table .settlement-identity {
+    padding-top: 0;
+  }
+
+  .settlement-table .settlement-identity strong {
+    color: #172b4d;
+    font-size: 15px;
+  }
+
+  .settlement-table .settlement-client .settlement-organization {
+    display: block;
+    color: #1d2939;
+    font-size: 14px;
+  }
+
+  .settlement-table .settlement-client small {
+    display: block;
+    margin-top: 4px;
+    line-height: 1.55;
+  }
+
+  .settlement-table .settlement-amounts {
+    min-width: 0;
+  }
+
+  .settlement-table .settlement-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .settlement-table .settlement-actions .icon-button {
+    width: 100%;
+  }
+
   .settlement-summary,
   .transaction-list dl {
     grid-template-columns: 1fr;

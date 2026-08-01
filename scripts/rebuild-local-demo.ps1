@@ -10,6 +10,7 @@ $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $composeFile = Join-Path $projectRoot 'docker-compose.local-demo.yml'
 $portCheck = Join-Path $PSScriptRoot 'check-ports.ps1'
 $prepareBackend = Join-Path $PSScriptRoot 'prepare-local-docker-backend.ps1'
+$verifyRuntimeArtifact = Join-Path $PSScriptRoot 'verify-local-demo-runtime-artifact.ps1'
 $defaultChannelsCsv = Join-Path $projectRoot 'database\media_channels.csv'
 $defaultQuotesCsv = Join-Path $projectRoot 'database\media_quotes.csv'
 $originalChannelsCsv = $env:WINPRESS_MEDIA_CHANNELS_CSV
@@ -61,6 +62,10 @@ try {
   Invoke-Checked -FilePath 'docker' -Arguments @(
     'compose', '-f', $composeFile, 'up', '-d', '--wait',
     '--wait-timeout', $WaitTimeoutSeconds, 'backend', 'frontend'
+  )
+  Invoke-Checked -FilePath 'powershell.exe' -Arguments @(
+    '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $verifyRuntimeArtifact,
+    '-ComposeFile', $composeFile
   )
   Invoke-Checked -FilePath 'docker' -Arguments @('compose', '-f', $composeFile, 'ps')
 }

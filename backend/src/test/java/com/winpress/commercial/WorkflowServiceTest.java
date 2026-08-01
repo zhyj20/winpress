@@ -1932,6 +1932,46 @@ class WorkflowServiceTest {
   }
 
   @Test
+  void cancelledSettlementCannotBeReopenedByManualStatusUpdate() {
+    CurrentUser.set(new AuthPrincipal(1L, "USR-1", 1L, "平台", "admin", "平台运营",
+        "13800000001", "admin@example.com", "PLATFORM_ADMIN", List.of("settlement:manage")));
+    when(repository.lockSettlementForUpdate(9L)).thenReturn(Map.of(
+        "id", 9L,
+        "status", "CANCELLED",
+        "paidAmount", BigDecimal.ZERO,
+        "outstandingAmount", new BigDecimal("100.00"),
+        "transactionCount", 0L));
+
+    BusinessException exception = assertThrows(
+        BusinessException.class, () -> service.updateSettlement(9L, "CONFIRMED", null));
+
+    assertEquals("INVALID_SETTLEMENT_TRANSITION", exception.getCode());
+    verify(repository, never()).updateSettlement(
+        org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyLong(),
+        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
+  }
+
+  @Test
+  void paidSettlementCannotBeReopenedWithoutARecordedRefund() {
+    CurrentUser.set(new AuthPrincipal(1L, "USR-1", 1L, "平台", "admin", "平台运营",
+        "13800000001", "admin@example.com", "PLATFORM_ADMIN", List.of("settlement:manage")));
+    when(repository.lockSettlementForUpdate(9L)).thenReturn(Map.of(
+        "id", 9L,
+        "status", "PAID",
+        "paidAmount", new BigDecimal("100.00"),
+        "outstandingAmount", BigDecimal.ZERO,
+        "transactionCount", 1L));
+
+    BusinessException exception = assertThrows(
+        BusinessException.class, () -> service.updateSettlement(9L, "CONFIRMED", null));
+
+    assertEquals("INVALID_SETTLEMENT_TRANSITION", exception.getCode());
+    verify(repository, never()).updateSettlement(
+        org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyLong(),
+        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any());
+  }
+
+  @Test
   void archivedCombinedSettlementCannotBeChangedOrReceiveNewTransactions() {
     CurrentUser.set(new AuthPrincipal(1L, "USR-1", 1L, "平台", "admin", "平台运营",
         "13800000001", "admin@example.com", "PLATFORM_ADMIN", List.of("settlement:manage")));
