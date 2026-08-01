@@ -171,8 +171,8 @@ import '@/assets/marketing-home.css'
           <RouterLink class="mkt-button mkt-button-secondary" to="/direct-publishing">
             查看媒体筛选<ArrowRight :size="17" />
           </RouterLink>
+          <MediaDiscoveryCard />
         </div>
-        <MediaDiscoveryCard />
       </section>
 
       <section id="methodology" class="home-section home-section-white">

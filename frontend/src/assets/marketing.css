@@ -29,8 +29,9 @@
   align-items: center;
   gap: 28px;
   padding: 12px max(32px, calc((100vw - 1296px) / 2));
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid #d8e1ee;
   background: #fff;
+  box-shadow: 0 1px 0 rgba(15, 43, 93, 0.03);
 }
 .mkt-logo {
   flex: 0 0 auto;
@@ -57,8 +58,8 @@
   position: relative;
   padding: 11px 0;
   color: #344054;
-  font-size: 15px;
-  font-weight: 650;
+  font-size: 16px;
+  font-weight: 700;
   line-height: 1.25;
   white-space: nowrap;
 }
@@ -816,7 +817,7 @@
   gap: 8px;
 }
 .mkt-button {
-  min-height: 44px;
+  min-height: 46px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -824,7 +825,7 @@
   padding: 0 20px;
   border: 1px solid transparent;
   border-radius: 6px;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 750;
   line-height: 1.2;
   white-space: nowrap;
@@ -1011,7 +1012,7 @@
   align-items: center;
   gap: 7px;
   color: var(--primary);
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 750;
 }
 .mkt-text-link svg {

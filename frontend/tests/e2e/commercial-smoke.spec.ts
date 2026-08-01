@@ -1006,7 +1006,7 @@ test('未验收媒体资料时，客户媒体邀请保留人工补充与核验�
   await expect(page).toHaveURL(/\/media-invitation$/)
   await expect(page.getByRole('heading', { name: '媒体邀请', exact: true })).toBeVisible()
   await expect(
-    page.getByText('在线筛选暂不可用。你仍可人工补充拟邀对象，平台会在执行前核验。'),
+    page.getByText('在线筛选暂不可用，可人工补充候选名单，由项目负责人核验。'),
   ).toBeVisible()
   await expect(page.getByRole('button', { name: '人工补充拟邀对象' })).toBeVisible()
 
