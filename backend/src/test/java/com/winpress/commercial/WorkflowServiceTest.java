@@ -1551,7 +1551,8 @@ class WorkflowServiceTest {
         Map.entry("status", "PENDING_EXECUTION"), Map.entry("updatedAt", "2026-07-29T00:00:00Z"),
         Map.entry("executionNote", "内部执行备注"), Map.entry("exceptionReason", "内部异常"),
         Map.entry("operatorName", "内部执行人员"), Map.entry("supplierId", 91L),
-        Map.entry("costPrice", new BigDecimal("600.00")), Map.entry("upstreamReference", "provider-only")));
+        Map.entry("costPrice", new BigDecimal("600.00")), Map.entry("upstreamReference", "provider-only"),
+        Map.entry("resultReady", false)));
     when(repository.tasks(
         org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.isNull(),
         org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.isNull(),
@@ -1607,8 +1608,10 @@ class WorkflowServiceTest {
     assertFalse(taskList.items().get(0).containsKey("operatorName"));
     assertFalse(taskList.items().get(0).containsKey("supplierId"));
     assertFalse(taskList.items().get(0).containsKey("costPrice"));
+    assertFalse(taskList.items().get(0).containsKey("resultReady"));
     assertFalse(taskDetail.containsKey("id"));
     assertFalse(taskDetail.containsKey("upstreamReference"));
+    assertFalse(taskDetail.containsKey("resultReady"));
     @SuppressWarnings("unchecked")
     Map<String, Object> project = (Map<String, Object>) detail.get("project");
     assertFalse(project.containsKey("operatorName"));

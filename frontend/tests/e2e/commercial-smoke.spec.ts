@@ -775,6 +775,88 @@ test('媒体邀请任务只呈现当前状态允许的下一步操作', async ({
   })
 })
 
+test('直编任务在履约核验前不显示成果回填入口', async ({ page }, testInfo) => {
+  const credentials = await loadAdminCredentials()
+  test.skip(
+    !credentials,
+    '请设置 WINPRESS_E2E_ADMIN_USERNAME 和 WINPRESS_E2E_ADMIN_PASSWORD 后执行直编履约门禁回归。',
+  )
+  if (!credentials) return
+
+  await signInForNavigationAudit(page, credentials)
+  let resultReady = false
+  await page.route('**/api/v1/publish-tasks**', async (route) => {
+    const url = new URL(route.request().url())
+    if (url.searchParams.get('channelType') !== 'DIRECT_PUBLISHING') {
+      await route.continue()
+      return
+    }
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        code: 'OK',
+        message: '操作成功',
+        data: {
+          items: [
+            {
+              id: 982,
+              taskNo: 'PUB-UI-FULFILLMENT-982',
+              projectId: 92,
+              projectNo: 'PRJ-UI-FULFILLMENT-92',
+              projectName: '直编履约门禁界面回归',
+              channelType: 'DIRECT_PUBLISHING',
+              channelName: '示例渠道',
+              manuscriptTitle: '示例定稿',
+              operatorName: '平台运营',
+              status: 'PENDING_EXECUTION',
+              resultReady,
+              updatedAt: '2026-08-01T12:00:00+08:00',
+            },
+          ],
+          total: 1,
+          page: 1,
+          pageSize: 15,
+        },
+        timestamp: '2026-08-01T12:00:00+08:00',
+      }),
+    })
+  })
+
+  await page.goto('/tasks?channelType=DIRECT_PUBLISHING', { waitUntil: 'networkidle' })
+  const taskRow = page.locator('tbody tr').filter({ hasText: 'PUB-UI-FULFILLMENT-982' }).first()
+  await taskRow.getByRole('button', { name: '处理', exact: true }).click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog.getByRole('button', { name: '提交成果', exact: true })).toHaveCount(0)
+  await expect(
+    dialog.getByText('履约核验尚未完成。请完成内部履约登记并保留可核验凭据后，再回填成果。', {
+      exact: true,
+    }),
+  ).toBeVisible()
+  await dialog.getByRole('button', { name: '关闭', exact: true }).click()
+
+  resultReady = true
+  await page.goto('/tasks?channelType=DIRECT_PUBLISHING', { waitUntil: 'networkidle' })
+  await page
+    .locator('tbody tr')
+    .filter({ hasText: 'PUB-UI-FULFILLMENT-982' })
+    .first()
+    .getByRole('button', {
+      name: '处理',
+      exact: true,
+    })
+    .click()
+  await expect(
+    page.getByRole('dialog').getByRole('button', { name: '提交成果', exact: true }),
+  ).toBeVisible()
+
+  await assertPageIntegrity(page)
+  await page.screenshot({
+    path: testInfo.outputPath('direct-publishing-fulfillment-result-gate.png'),
+    fullPage: true,
+  })
+})
+
 test('管理员接口管理页只显示待验收状态与凭据引用', async ({ page }) => {
   const credentials = await loadAdminCredentials()
   test.skip(

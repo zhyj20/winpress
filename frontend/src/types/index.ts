@@ -288,6 +288,8 @@ export interface PublishTask {
   mediaInvitationStatus?: string
   mediaInvitedAt?: string
   mediaRespondedAt?: string
+  /** Operator/admin-only readiness signal; customer task responses omit it. */
+  resultReady?: boolean
   status: string
   updatedAt: string
 }

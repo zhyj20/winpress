@@ -22,7 +22,10 @@ export default defineConfig({
     port: frontendPort,
     strictPort: true,
     proxy: {
-      '/api': {
+      // Match the API path segment, not every public route beginning with "api".
+      // Without the trailing slash, /api-integration was sent to Spring Boot in
+      // local development and rendered a backend 404 instead of the public page.
+      '/api/': {
         target: backendUrl,
         changeOrigin: true,
         configure: (proxy) => {

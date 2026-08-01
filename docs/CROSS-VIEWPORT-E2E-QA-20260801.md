@@ -23,10 +23,10 @@ npx.cmd playwright test --project=mobile --workers=1 --reporter=line
 
 | 视口项目 | 用例数 | 最终状态 |
 | --- | ---: | --- |
-| `desktop` | 38 | `passed`，`failedTests: []` |
-| `tablet` | 38 | `passed`，`failedTests: []` |
-| `mobile` | 38 | `passed`，`failedTests: []` |
-| 合计 | 114 | `114/114` 通过 |
+| `desktop` | 39 | `passed`，`failedTests: []` |
+| `tablet` | 39 | `passed`，`failedTests: []` |
+| `mobile` | 39 | `passed`，`failedTests: []` |
+| 合计 | 117 | `117/117` 通过 |
 
 当前终端适配层会在 Playwright 父进程仍有子进程执行时提前返还控制权，因此每一轮均在子进程退出后读取 `frontend/test-results/.last-run.json` 的最终状态；不把中间进度输出作为通过依据。
 
@@ -61,6 +61,14 @@ npx.cmd playwright test --project=mobile --workers=1 --reporter=line
 - **修复：** 前端依据当前邀请状态只提供合法下一步；待发邀请只可登记“已发出邀请”或“不再继续”，且隐藏成果回填。已结束邀请的沟通与成果表单均锁定。
 - **测试：** 新增浏览器用例用拦截的任务列表覆盖 `PENDING`、`INVITED`、`RESPONDED`、`ATTENDING` 四种状态，因此不依赖本机种子记录，也不写入演示业务数据。
 - **最终回归：** 前端检查、生产构建、后端 `174/174`、本机健康检查和 P0/P1 权限回归通过；桌面、平板、移动 Playwright 各 `38/38`，合计 `114/114`。
+
+## 直编成果履约门禁与本地路由复验
+
+- **问题：** 已分配供应商的直编发稿任务，后端会在供应商订单未完成、无履约方式或无凭据引用时拒绝成果回填；此前运营端任务弹窗仍预先显示回填表单。执行人员会先走到无效入口，再收到接口拒绝。另一个本地开发问题是 Vite 的 `/api` 代理会误匹配公开路由 `/api-integration`，将该页面转发到后端并显示接口不存在。
+- **修复：** 任务查询对运营／管理员投影只增加不含供应商名称、成本、上游编号或凭据内容的 `resultReady` 布尔值。直编任务只有在未绑定供应商，或已完成供应商订单且具有 `MANUAL`／`API` 履约方式与凭据引用时才显示成果回填；客户任务投影继续排除该字段。Vite 代理收窄为 `/api/`，使 `/api-integration` 继续由前端路由处理。
+- **专项验证：** 新增浏览器用例用拦截的直编任务分别覆盖 `resultReady: false` 与 `true`，在桌面、平板、移动端均验证“未核验时不显示回填入口；核验后显示”。本地开发服务器请求 `/api-integration` 返回 SPA 文档，不再返回后端 `NOT_FOUND`。
+- **最终回归：** 前端 `npm.cmd run check`、`npm.cmd run build` 通过；后端 Maven 为 20 个报告、`174/174`（0 failure / 0 error / 0 skipped），并完成打包；`scripts/verify-local-p0p1.ps1` 与运行产物哈希检查通过；桌面、平板、移动 Playwright 各 `39/39`，合计 `117/117`。
+- **运行栈说明：** 后端容器已由本轮 JAR 重建。Docker Hub 当次访问 `nginx:1.27-alpine` 的认证连接两次返回 EOF，无法生成新的前端镜像；因此为验证本次构建，已将新鲜 `frontend/dist` 临时复制到现有、本机健康的 Nginx 演示容器中。该复制是可随容器重建消失的本机 QA 手段，不可作为正式镜像构建或生产交付证据；恢复 Docker Hub 后仍须重新构建前端镜像。
 
 ## 未由本轮证明的事项
 

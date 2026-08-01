@@ -636,7 +636,7 @@ try {
   $projectPage = Invoke-Json -Method GET -Path '/projects?page=1&pageSize=20' -Headers $customerHeaders
   Add-Check -Name 'customer project summary uses field projection' -Passed (-not (Find-ExactForbiddenKey $projectPage.data.items @('operatorName','budget','supplierId','costPrice','upstreamReference'))) -Detail 'no internal owner or pricing fields'
   $customerPublishTasks = Invoke-Json -Method GET -Path '/publish-tasks?page=1&pageSize=20' -Headers $customerHeaders
-  Add-Check -Name 'customer publish task field boundary' -Passed (-not (Find-ExactForbiddenKey $customerPublishTasks.data.items @('id','manuscriptId','executionNote','exceptionReason','operatorName','supplierId','costPrice','upstreamReference'))) -Detail 'no internal task key or supplier fields'
+  Add-Check -Name 'customer publish task field boundary' -Passed (-not (Find-ExactForbiddenKey $customerPublishTasks.data.items @('id','manuscriptId','executionNote','exceptionReason','operatorName','supplierId','costPrice','upstreamReference','resultReady'))) -Detail 'no internal task key, supplier fields or internal readiness signal'
   $operatorResultAcceptance = Invoke-Http -Method POST -Uri "$ApiBaseUrl/publish-tasks/999999/accept" -Headers $operatorHeaders -Body @{}
   Add-Check -Name 'operator cannot accept customer results' -Passed ($operatorResultAcceptance.Status -eq 403) -Detail "HTTP $($operatorResultAcceptance.Status)"
   $customerWorkItems = Invoke-Json -Method GET -Path '/work-items?page=1&pageSize=100' -Headers $customerHeaders

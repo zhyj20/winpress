@@ -127,15 +127,20 @@ function canUpdateMediaInvitation(task?: PublishTask | null) {
 
 function canSubmitTaskResult(task?: PublishTask | null) {
   if (!task) return false
-  if (task.channelType !== 'MEDIA_PR') return true
-  return ['INVITED', 'RESPONDED', 'ATTENDING'].includes(task.mediaInvitationStatus || 'PENDING')
+  if (task.channelType === 'MEDIA_PR') {
+    return ['INVITED', 'RESPONDED', 'ATTENDING'].includes(task.mediaInvitationStatus || 'PENDING')
+  }
+  return task.resultReady !== false
 }
 
-function mediaInvitationResultHint(status?: string) {
-  if (!status || status === 'PENDING') {
-    return '请先记录实际发出的媒体邀请，再回填可核验的报道链接。'
+function resultSubmissionHint(task: PublishTask) {
+  if (task.channelType === 'MEDIA_PR') {
+    if (!task.mediaInvitationStatus || task.mediaInvitationStatus === 'PENDING') {
+      return '请先记录实际发出的媒体邀请，再回填可核验的报道链接。'
+    }
+    return '该媒体邀请已结束，不能补录发布成果。'
   }
-  return '该媒体邀请已结束，不能补录发布成果。'
+  return '履约核验尚未完成。请完成内部履约登记并保留可核验凭据后，再回填成果。'
 }
 
 async function load() {
@@ -499,7 +504,7 @@ watch(
         </form>
         <div v-else class="task-action-locked">
           <h3>回填发布成果</h3>
-          <p class="form-hint">{{ mediaInvitationResultHint(active.mediaInvitationStatus) }}</p>
+          <p class="form-hint">{{ resultSubmissionHint(active) }}</p>
         </div>
       </div>
       <p v-if="actionError" class="form-error">{{ actionError }}</p>
