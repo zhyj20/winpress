@@ -34,6 +34,24 @@ const assignmentStatusLabel = computed(() =>
   auth.user?.role === 'CUSTOMER' ? '待平台安排' : '待分配',
 )
 const terminalTaskStatuses = new Set(['COMPLETED', 'CLIENT_ACCEPTED', 'NOT_PROCEEDING'])
+const mediaInvitationTransitions: Record<string, Array<{ value: string; label: string }>> = {
+  PENDING: [
+    { value: 'INVITED', label: '已发出邀请' },
+    { value: 'NOT_PROCEEDING', label: '不再继续' },
+  ],
+  INVITED: [
+    { value: 'RESPONDED', label: '媒体已回复' },
+    { value: 'ATTENDING', label: '确认到场' },
+    { value: 'DECLINED', label: '媒体婉拒' },
+    { value: 'NOT_PROCEEDING', label: '不再继续' },
+  ],
+  RESPONDED: [
+    { value: 'ATTENDING', label: '确认到场' },
+    { value: 'DECLINED', label: '媒体婉拒' },
+    { value: 'NOT_PROCEEDING', label: '不再继续' },
+  ],
+  ATTENDING: [{ value: 'NOT_PROCEEDING', label: '不再继续' }],
+}
 const createdTaskNos = computed(
   () =>
     new Set(
@@ -96,6 +114,30 @@ function invitationStatusLabel(value?: string) {
   )
 }
 
+function mediaInvitationStatusOptions(status?: string) {
+  return mediaInvitationTransitions[status || 'PENDING'] || []
+}
+
+function canUpdateMediaInvitation(task?: PublishTask | null) {
+  return Boolean(
+    task?.channelType === 'MEDIA_PR' &&
+    mediaInvitationStatusOptions(task.mediaInvitationStatus).length,
+  )
+}
+
+function canSubmitTaskResult(task?: PublishTask | null) {
+  if (!task) return false
+  if (task.channelType !== 'MEDIA_PR') return true
+  return ['INVITED', 'RESPONDED', 'ATTENDING'].includes(task.mediaInvitationStatus || 'PENDING')
+}
+
+function mediaInvitationResultHint(status?: string) {
+  if (!status || status === 'PENDING') {
+    return '请先记录实际发出的媒体邀请，再回填可核验的报道链接。'
+  }
+  return '该媒体邀请已结束，不能补录发布成果。'
+}
+
 async function load() {
   loading.value = true
   error.value = ''
@@ -124,8 +166,7 @@ function openTask(task: PublishTask) {
   updateForm.status = task.status === 'PENDING_ASSIGNMENT' ? 'PENDING_EXECUTION' : task.status
   updateForm.executionNote = task.executionNote || ''
   updateForm.exceptionReason = task.exceptionReason || ''
-  invitationForm.status =
-    task.mediaInvitationStatus === 'PENDING' ? 'INVITED' : task.mediaInvitationStatus || 'INVITED'
+  invitationForm.status = mediaInvitationStatusOptions(task.mediaInvitationStatus)[0]?.value || ''
   invitationForm.note = ''
   resultForm.title = task.manuscriptTitle || `${task.projectName}媒体邀请`
 }
@@ -408,7 +449,7 @@ watch(
             <Save :size="17" />保存状态
           </button>
         </form>
-        <form v-if="active.channelType === 'MEDIA_PR'" @submit.prevent="updateMediaInvitation">
+        <form v-if="canUpdateMediaInvitation(active)" @submit.prevent="updateMediaInvitation">
           <h3>记录媒体沟通</h3>
           <p class="form-hint">
             仅在实际发出邀请或收到回复后更新；媒体是否采访或报道仍由媒体自主决定。
@@ -418,11 +459,13 @@ watch(
           </p>
           <label
             >沟通状态<select v-model="invitationForm.status" required>
-              <option value="INVITED">已发出邀请</option>
-              <option value="RESPONDED">媒体已回复</option>
-              <option value="ATTENDING">确认到场</option>
-              <option value="DECLINED">媒体婉拒</option>
-              <option value="NOT_PROCEEDING">不再继续</option>
+              <option
+                v-for="option in mediaInvitationStatusOptions(active.mediaInvitationStatus)"
+                :key="option.value"
+                :value="option.value"
+              >
+                {{ option.label }}
+              </option>
             </select></label
           ><label
             >沟通说明<span class="required">*</span
@@ -436,7 +479,11 @@ watch(
             <Save :size="17" />记录沟通
           </button>
         </form>
-        <form @submit.prevent="submitResult">
+        <div v-else-if="active.channelType === 'MEDIA_PR'" class="task-action-locked">
+          <h3>记录媒体沟通</h3>
+          <p class="form-hint">该邀请已结束，沟通状态已锁定。</p>
+        </div>
+        <form v-if="canSubmitTaskResult(active)" @submit.prevent="submitResult">
           <h3>回填发布成果</h3>
           <label
             >成果标题<span class="required">*</span
@@ -450,6 +497,10 @@ watch(
             <CheckCircle2 :size="17" />提交成果
           </button>
         </form>
+        <div v-else class="task-action-locked">
+          <h3>回填发布成果</h3>
+          <p class="form-hint">{{ mediaInvitationResultHint(active.mediaInvitationStatus) }}</p>
+        </div>
       </div>
       <p v-if="actionError" class="form-error">{{ actionError }}</p>
     </section>

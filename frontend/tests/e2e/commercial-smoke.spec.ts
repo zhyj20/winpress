@@ -688,6 +688,93 @@ test('媒体与发布任务保留暂不推进状态的深链筛选', async ({ pa
   await page.screenshot({ path: testInfo.outputPath('tasks-not-proceeding.png'), fullPage: true })
 })
 
+test('媒体邀请任务只呈现当前状态允许的下一步操作', async ({ page }, testInfo) => {
+  const credentials = await loadAdminCredentials()
+  test.skip(
+    !credentials,
+    '请设置 WINPRESS_E2E_ADMIN_USERNAME 和 WINPRESS_E2E_ADMIN_PASSWORD 后执行媒体邀请状态机回归。',
+  )
+  if (!credentials) return
+
+  await signInForNavigationAudit(page, credentials)
+  const expectedOptions: Record<string, string[]> = {
+    PENDING: ['已发出邀请', '不再继续'],
+    INVITED: ['媒体已回复', '确认到场', '媒体婉拒', '不再继续'],
+    RESPONDED: ['确认到场', '媒体婉拒', '不再继续'],
+    ATTENDING: ['不再继续'],
+  }
+  let invitationStatus = 'PENDING'
+  await page.route('**/api/v1/publish-tasks**', async (route) => {
+    const url = new URL(route.request().url())
+    if (url.searchParams.get('channelType') !== 'MEDIA_PR') {
+      await route.continue()
+      return
+    }
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        success: true,
+        code: 'OK',
+        message: '操作成功',
+        data: {
+          items: [
+            {
+              id: 981,
+              taskNo: 'PUB-UI-STATE-981',
+              projectId: 91,
+              projectNo: 'PRJ-UI-STATE-91',
+              projectName: '媒体邀请状态机界面回归',
+              channelType: 'MEDIA_PR',
+              channelName: '示例媒体',
+              manuscriptTitle: '示例活动资料',
+              operatorName: '平台运营',
+              status: 'PENDING_EXECUTION',
+              mediaInvitationStatus: invitationStatus,
+              updatedAt: '2026-08-01T12:00:00+08:00',
+            },
+          ],
+          total: 1,
+          page: 1,
+          pageSize: 15,
+        },
+        timestamp: '2026-08-01T12:00:00+08:00',
+      }),
+    })
+  })
+
+  for (const status of Object.keys(expectedOptions)) {
+    invitationStatus = status
+    await page.goto('/tasks?channelType=MEDIA_PR', { waitUntil: 'networkidle' })
+    const taskRow = page.locator('tbody tr').filter({ hasText: 'PUB-UI-STATE-981' }).first()
+    await expect(taskRow).toBeVisible()
+    await taskRow.getByRole('button', { name: '处理', exact: true }).click()
+
+    const dialog = page.getByRole('dialog')
+    await expect(dialog.getByLabel('沟通状态').locator('option')).toHaveText(
+      expectedOptions[status],
+    )
+
+    if (status === 'PENDING') {
+      await expect(dialog.getByRole('button', { name: '提交成果', exact: true })).toHaveCount(0)
+      await expect(
+        dialog.getByText('请先记录实际发出的媒体邀请，再回填可核验的报道链接。', {
+          exact: true,
+        }),
+      ).toBeVisible()
+    } else {
+      await expect(dialog.getByRole('button', { name: '提交成果', exact: true })).toBeVisible()
+    }
+
+    await dialog.getByRole('button', { name: '关闭', exact: true }).click()
+  }
+
+  await assertPageIntegrity(page)
+  await page.screenshot({
+    path: testInfo.outputPath('media-invitation-state-transitions.png'),
+    fullPage: true,
+  })
+})
+
 test('管理员接口管理页只显示待验收状态与凭据引用', async ({ page }) => {
   const credentials = await loadAdminCredentials()
   test.skip(

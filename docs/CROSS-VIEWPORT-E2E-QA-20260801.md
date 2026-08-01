@@ -23,10 +23,10 @@ npx.cmd playwright test --project=mobile --workers=1 --reporter=line
 
 | 视口项目 | 用例数 | 最终状态 |
 | --- | ---: | --- |
-| `desktop` | 37 | `passed`，`failedTests: []` |
-| `tablet` | 37 | `passed`，`failedTests: []` |
-| `mobile` | 37 | `passed`，`failedTests: []` |
-| 合计 | 111 | `111/111` 通过 |
+| `desktop` | 38 | `passed`，`failedTests: []` |
+| `tablet` | 38 | `passed`，`failedTests: []` |
+| `mobile` | 38 | `passed`，`failedTests: []` |
+| 合计 | 114 | `114/114` 通过 |
 
 当前终端适配层会在 Playwright 父进程仍有子进程执行时提前返还控制权，因此每一轮均在子进程退出后读取 `frontend/test-results/.last-run.json` 的最终状态；不把中间进度输出作为通过依据。
 
@@ -38,6 +38,7 @@ npx.cmd playwright test --project=mobile --workers=1 --reporter=line
 - 供应商订单仅在管理员界面呈现，客户任务与订单记录不回显供应商、成本或内部备注；
 - 发布会项目日程导出、锁定后的只读状态、结果登记后的候选锁定；
 - 看板指标深链、浏览器前进/后退后的订单筛选同步。
+- 媒体邀请任务按当前已记录事实只呈现可继续的沟通状态；未发出邀请时不提供成果回填。
 
 ## 后续供应商订单交互修补
 
@@ -53,6 +54,13 @@ npx.cmd playwright test --project=mobile --workers=1 --reporter=line
 - **先行失败测试：** 新增后端测试分别证明“已取消”和“已结清”不能回退；新增浏览器测试先验证旧移动页的 `<tr>` 为 `table-row`，随后要求其为卡片栅格且 `.table-wrap` 不产生内部横向滚动。旧页面按预期失败。
 - **运行时验证：** 测试从已认证管理员会话读取本机已结清结算单，向运行中接口请求 `PATCH ... { status: 'CONFIRMED' }`；结果为 `409 / INVALID_SETTLEMENT_TRANSITION`，未写入业务状态。移动截图已人工复核，信息卡字段均可见。
 - **最终回归：** 后端 Maven `174/174`（0 failure / 0 error）并完成打包；前端 `npm.cmd run check`、`npm.cmd run build` 通过；桌面、平板、移动 Playwright 各 `37/37`，合计 `111/111`。新增本机重建脚本会比较 `target-local` JAR 和容器 `/app/app.jar` 的 SHA-256，本轮结果一致。
+
+## 媒体邀请任务状态界面复验
+
+- **问题：** `/tasks` 已由服务端限制媒体邀请状态机，但前端仍显示所有沟通状态，并在尚未登记实际邀请时显示成果回填表单。
+- **修复：** 前端依据当前邀请状态只提供合法下一步；待发邀请只可登记“已发出邀请”或“不再继续”，且隐藏成果回填。已结束邀请的沟通与成果表单均锁定。
+- **测试：** 新增浏览器用例用拦截的任务列表覆盖 `PENDING`、`INVITED`、`RESPONDED`、`ATTENDING` 四种状态，因此不依赖本机种子记录，也不写入演示业务数据。
+- **最终回归：** 前端检查、生产构建、后端 `174/174`、本机健康检查和 P0/P1 权限回归通过；桌面、平板、移动 Playwright 各 `38/38`，合计 `114/114`。
 
 ## 未由本轮证明的事项
 
