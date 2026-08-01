@@ -6,6 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -145,6 +147,33 @@ class NiumediaMediaServiceTest {
     assertFalse(status.containsKey("verificationStatus"));
     assertEquals("MEDIA_DISCOVERY_UNAVAILABLE", error.getCode());
     assertTrue(error.getMessage().contains("项目负责人补充"));
+  }
+
+  @Test
+  void reporterSearchFallsBackSafelyWhenOnlyMediaSearchIsConfigured() {
+    CurrentUser.set(customer(3L, 2L));
+    NiumediaMediaClient client = mock(NiumediaMediaClient.class);
+    NiumediaMediaService service = governedService(client);
+
+    BusinessException error = assertThrows(
+        BusinessException.class, () -> service.search(query("REPORTER")));
+
+    assertEquals("MEDIA_DISCOVERY_UNAVAILABLE", error.getCode());
+    assertTrue(error.getMessage().contains("项目负责人补充"));
+    verify(client, never()).search(query("REPORTER"));
+  }
+
+  @Test
+  void taxonomyFallsBackSafelyWhenLookupDataIsNotConfigured() {
+    CurrentUser.set(customer(3L, 2L));
+    NiumediaMediaClient client = mock(NiumediaMediaClient.class);
+    NiumediaMediaService service = governedService(client);
+
+    BusinessException error = assertThrows(BusinessException.class, service::taxonomy);
+
+    assertEquals("MEDIA_DISCOVERY_UNAVAILABLE", error.getCode());
+    assertTrue(error.getMessage().contains("项目负责人补充"));
+    verify(client, never()).taxonomy();
   }
 
   private NiumediaMediaService governedService(NiumediaMediaClient client) {

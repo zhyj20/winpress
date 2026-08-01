@@ -76,7 +76,7 @@ public class NiumediaMediaService {
 
   public MediaSearchResult search(MediaSearchQuery query) {
     AuthPrincipal user = CurrentUser.get();
-    requireOperational();
+    requireSearchOperational(query == null ? null : query.target());
     MediaSearchResult result = client.search(query);
     long now = System.currentTimeMillis();
     evictExpiredSelections(now);
@@ -128,15 +128,27 @@ public class NiumediaMediaService {
 
   public DiscoveryTaxonomy taxonomy() {
     CurrentUser.get();
-    requireOperational();
+    requireTaxonomyOperational();
     return client.taxonomy();
   }
 
-  private void requireOperational() {
+  private void requireSearchOperational(String target) {
     boolean governanceReady = integrationRepository.isExternalMediaDataOperational("NIUMEDIA");
-    boolean runtimeConfigured =
-        client.isMediaSearchConfigured() || client.isReporterSearchConfigured();
-    if (!governanceReady || !runtimeConfigured) {
+    String safeTarget = target == null ? "MEDIA" : target.trim().toUpperCase();
+    boolean targetConfigured = "REPORTER".equals(safeTarget)
+        ? client.isReporterSearchConfigured()
+        : client.isMediaSearchConfigured();
+    if (!governanceReady || !targetConfigured) {
+      throw new BusinessException(
+          "MEDIA_DISCOVERY_UNAVAILABLE",
+          "媒体资料检索暂不可用。您仍可提交需求，由项目负责人补充并核验候选名单。",
+          HttpStatus.SERVICE_UNAVAILABLE);
+    }
+  }
+
+  private void requireTaxonomyOperational() {
+    boolean governanceReady = integrationRepository.isExternalMediaDataOperational("NIUMEDIA");
+    if (!governanceReady || !client.isTaxonomyConfigured()) {
       throw new BusinessException(
           "MEDIA_DISCOVERY_UNAVAILABLE",
           "媒体资料检索暂不可用。您仍可提交需求，由项目负责人补充并核验候选名单。",
