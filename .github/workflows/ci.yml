@@ -10,9 +10,20 @@ permissions:
   contents: read
 
 jobs:
+  public-source-boundary:
+    name: Public source boundary
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reject secrets and non-public source material
+        shell: pwsh
+        run: ./scripts/verify-public-source-boundary.ps1 -ExcludeCaseAssets
+
   frontend:
     name: Frontend check and build
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: frontend
@@ -30,6 +41,7 @@ jobs:
   backend:
     name: Backend verification
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: backend
@@ -38,7 +50,22 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: "17"
           cache: maven
       - run: chmod +x mvnw
       - run: ./mvnw -B verify
+
+  dependency-review:
+    name: Dependency review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: never
+
